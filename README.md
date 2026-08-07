@@ -208,6 +208,17 @@ There are Python models of the trickiest logic in `tools/` — the ghost rule an
 learn round-trip, the filter's stability, and the looper's event ordering. Run
 them after touching the corresponding C++.
 
+## Status
+
+**v1.0.0 builds clean and has not yet been tested on hardware.** Everything is
+verified against models and the compiler only. `docs/HARDWARE-TESTING.md` is the
+running order for the first real session, and `docs/DEVLOG.md` records the
+design decisions and the bugs the models caught along the way.
+
+The open question is whether all ten combinations are reliably separable on a
+real Four Voltages at a usable knob position. The card reports collisions during
+calibration rather than guessing, so it will tell you.
+
 ## Credits
 
 ComputerCard by **Chris Johnson** (Music Thing Modular), MIT.

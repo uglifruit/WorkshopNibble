@@ -125,6 +125,16 @@ of direction-dependent error in the level detector before it existed.
 | `ComputerCard.h` | Vendored MTM library — **do not edit** |
 | `tools/` | Python models (see below) + `syntax.sh` |
 | `info.yaml` | Workshop System card registry metadata |
+| `docs/DEVLOG.md` | Design decisions, and the bugs the models caught |
+| `docs/HARDWARE-TESTING.md` | Running order for a hardware session, and what to bring back |
+
+## Current status
+
+**Nothing has touched hardware yet.** v1.0.0 is model-verified and
+compiler-verified only. Before changing anything in response to how it sounds,
+read `docs/HARDWARE-TESTING.md` — it lists what to check in what order, and the
+tolerance constants most likely to need moving (`kSettleTol`, `kMatchWindow`,
+`kCollisionMin`, grouped at the top of `levels.h` for exactly that reason).
 
 ## Verifying changes
 
@@ -161,5 +171,5 @@ is the case here — it is there for when one is.
 
 ## Repo
 
-`https://github.com/uglifruit/WorkshopButtons` (public). Commit as
+`https://github.com/uglifruit/WorkshopNibble` (public). Commit as
 Andy Jenkinson (uglifruit).
