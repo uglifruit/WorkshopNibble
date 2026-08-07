@@ -112,7 +112,7 @@ degrees; adding a second finger climbs.
 |---------|------|
 | **Main** | Macro: length, filter and loudness together |
 | **X** | How the macro is shared between those three |
-| **Y** | Scale (12, ordered dark → bright; LEDs show it as a bar while you turn) |
+| **Y** | Scale — twelve of them, ordered dark → bright (LEDs show a bar while you turn) |
 | **Switch UP** | Fast glide between notes |
 | **Switch MID** | Stepped pitch |
 | **Switch tap** | Retrigger the current note |
@@ -141,6 +141,36 @@ mostly shut, always audible), **BALANCED** (all three follow the macro equally),
 and **BRIGHT** (short, open, with the loudness squared so the top of the macro
 pops as an accent).
 
+### The scales
+
+Twelve, on the Y knob, ordered **dark → bright** from fully anticlockwise to
+fully clockwise — so the knob reads as a single mood axis rather than a list,
+and the LED bar (more light = brighter) matches it.
+
+| Y | Scale | Semitones | Top of the ten |
+|---|-------|-----------|----------------|
+| 1 | Phrygian | 0 1 3 5 7 8 10 | +15 (1¼ oct) |
+| 2 | Hirajoshi | 0 2 3 7 8 | +20 (1⅔ oct) |
+| 3 | Harmonic Minor | 0 2 3 5 7 8 11 | +15 (1¼ oct) |
+| 4 | Natural Minor | 0 2 3 5 7 8 10 | +15 (1¼ oct) |
+| 5 | Minor Pentatonic | 0 3 5 7 10 | +22 (1⅚ oct) |
+| 6 | m7 Arpeggio | 0 3 7 10 | +27 (2¼ oct) |
+| 7 | Dorian | 0 2 3 5 7 9 10 | +15 (1¼ oct) |
+| 8 | Major Pentatonic | 0 2 4 7 9 | +21 (1¾ oct) |
+| 9 | Ionian (Major) | 0 2 4 5 7 9 11 | +16 (1⅓ oct) |
+| 10 | Maj7 Arpeggio | 0 4 7 11 | +28 (2⅓ oct) |
+| 11 | Whole Tone | 0 2 4 6 8 10 | +18 (1½ oct) |
+| 12 | Chromatic | all twelve | +9 (¾ oct) |
+
+The right-hand column is worth noticing: because the ten combinations are ten
+*degrees*, a four-note arpeggio spreads them over more than two octaves while
+the chromatic scale packs them into three quarters of one. Choosing a scale
+chooses the **range** as well as the flavour, and the difference is obvious the
+moment you play it — the arpeggios are the ones to reach for when you want the
+buttons to cover real ground.
+
+Root is C2, and **CV In 2** transposes the lot.
+
 ---
 
 ## DRUMS
@@ -154,8 +184,14 @@ the sounds you hit most should need the fewest fingers.
 | A **kick** | B **snare** | C closed hat | D open hat | AB rim |
 | AC low tom | AD mid tom | BC high tom | BD clap | CD cowbell |
 
-Everything is synthesised, not sampled — which is why the Y knob can reshape the
-whole kit at once, and why there is no sample upload to worry about.
+Everything is **synthesised, not sampled**: pitch-swept triangle bodies with
+exponential decay and a noise mix per voice, in the manner of Wild Pebble. That
+is why the Y knob can reshape the whole kit at once — the parameters are live
+variables rather than fixed audio — and why the card needs no flash region, no
+USB and no upload tool.
+
+It also keeps the kit *playable* rather than fixed: one knob takes it from deep
+and slow to tight and clicky without a resampler in the way.
 
 ### Panel
 

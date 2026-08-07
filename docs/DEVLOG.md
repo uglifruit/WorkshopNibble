@@ -139,6 +139,29 @@ In rough order of how likely they are to need attention:
 5. Loop feel: whether 1/16 quantisation is right, and whether hold-UP-to-erase
    is comfortable or alarming.
 
+### Synthesised drums, not samples — decided, not deferred
+
+Considered and settled for v1.0: the kit stays parametric.
+
+Baking PCM in is entirely practical — WorkshopBio's `tools/mksamples.py`
+pipeline would drop straight in, and there is plenty of flash spare at 4.6%
+used. It was rejected because of what it *takes away*:
+
+- **The Y knob stops working the way it does.** "Kit character, lower and longer
+  ↔ higher and shorter" is one multiply on parameters that are already live
+  variables. On samples the same gesture is a resampler plus an envelope
+  re-shaper, and pitch and decay stop being independent.
+- **It drags the whole upload apparatus back in.** A reserved flash region, a
+  USB stack, a web editor, and the flash-write dance where core 0 has to park
+  itself in RAM before XIP drops. That is most of WorkshopBio's complexity, for
+  a card whose point is that it needs one patch cable and no computer.
+- **Ten sounds cost nothing today.** Adding an eleventh is a row in a table.
+
+The honest counterargument is that synthesised hats and claps never sound as
+good as recorded ones, and if the kit disappoints on hardware that is the first
+thing to revisit. Revisit it as a *variant build* rather than by bolting uploads
+onto this one.
+
 ### Ideas deliberately left out
 
 - External clock into Pulse In 2 for DRUMS (Pulse In 2 is unused and reserved).

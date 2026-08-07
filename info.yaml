@@ -53,6 +53,11 @@ summary: |
   Four Voltages knob changes every voltage it makes, so a remembered calibration
   would be a wrong one.<br><br>
 
+  The combinations play scale DEGREES rather than pitches, so the voltage only
+  ever decides which combination you pressed - move the Four Voltages knob,
+  re-learn, and the same buttons give you the same notes back. Twelve scales on
+  Knob Y, ordered dark to bright.<br><br>
+
   Hold the momentary switch at power-on for DRUMS: ten synthesised percussion
   voices, a four-bar event looper whose overdub is lossless because it records
   events rather than audio, and a DJ filter whose movements can be recorded into
@@ -126,7 +131,7 @@ controls:
         description: KEYS - how the macro is shared between length, filter and loudness, morphing continuously between LONG, BALANCED and BRIGHT. DRUMS - tempo, 40 to 240 BPM. Changing it re-times the pattern rather than pitching it.
       y:
         name: Scale / Kit*
-        description: KEYS - one of twelve scales, ordered dark to bright, shown on the LEDs as a bar while you turn it. DRUMS - the character of the whole kit at once, from lower and longer to higher and shorter.
+        description: "KEYS - one of twelve scales, ordered dark to bright from fully anticlockwise, shown on the LEDs as a bar while you turn it: Phrygian, Hirajoshi, Harmonic Minor, Natural Minor, Minor Pentatonic, m7 Arpeggio, Dorian, Major Pentatonic, Ionian (Major), Maj7 Arpeggio, Whole Tone, Chromatic. Because the ten combinations are ten DEGREES, the scale also sets the range - a four-note arpeggio spreads them over more than two octaves while Chromatic packs them into three quarters of one. DRUMS - the character of the whole kit at once, from lower and longer to higher and shorter."
   leds:
     -
       display: list
