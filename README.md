@@ -1,6 +1,9 @@
-# NIBBLE
+# NIBBLE — Melody / Percussion
 
-**Four buttons. Fifteen voltages. Ten notes.**
+**Turns the Workshop System's mysterious four buttons into tools to make
+melodic lines and lo-fi drum loops.**
+
+*Four buttons. Fifteen voltages. Ten notes.*
 
 A program card for the [Music Thing Modular Workshop System
 Computer](https://www.musicthing.co.uk/workshopsystem/) that turns the system's
@@ -23,10 +26,33 @@ Four buttons is four bits is one nibble. Hence the name.
 
 | Boot | How | What |
 |------|-----|------|
-| **KEYS** | normal power-on | A ten-note keyboard: pitch and harmony on 1V/oct, two envelope CVs, a gate. |
-| **DRUMS** | hold the momentary switch at power-on | Twelve parametric percussion voices played shift-and-tap, a four-bar event looper with lossless overdub, a DJ filter, and a bassline. |
+| **MELODY** (`KEYS`) | normal power-on | A ten-note keyboard: pitch and harmony on 1V/oct, two envelope CVs, a gate. |
+| **PERCUSSION** (`DRUMS`) | hold the momentary switch at power-on | Twelve percussion voices played shift-and-tap, a four-bar event looper with lossless overdub, a DJ filter, and a bassline. |
 
-The LEDs say which one you got: KEYS lights the left column, DRUMS the right.
+The bracketed names are what the modes are called in the source, so the two are
+easy to match up.
+
+### What the LEDs tell you at power-on
+
+The six LEDs are arranged in a 2×3 block, and the top four mirror the Four
+Voltages buttons throughout the whole card:
+
+```
+0 1        LEDs 0-3 = buttons A B / C D
+2 3
+4 5
+```
+
+For about a second after power-on, the card says which mode it came up in:
+
+| At power-on | Means |
+|---|---|
+| **Left column** (0, 2, 4), steady | **MELODY** |
+| **Right column** (1, 3, 5), steady | **PERCUSSION** |
+| Either column, but **blinking** | Booted fine — but the *Computer's own* CV outputs have no factory calibration, so 1V/oct will not track. Not a NIBBLE fault, and worth knowing before you blame the calibration below. |
+
+The splash then clears and **calibration starts on its own**. On the bench it
+reads as one movement: light up, go dark, begin asking for buttons.
 
 ---
 
@@ -38,7 +64,7 @@ This is the technique the card is built around, and it is worth learning first.
 **Tap B.** A snare. Let go — silence again. **Tap A.** Closed hat again.
 
 The held finger is a bank-select; the tapping finger plays. It repeats
-indefinitely with no spurious hits, and it works exactly the same in KEYS.
+indefinitely with no spurious hits, and it works exactly the same in MELODY.
 
 That falls out of how the card solves its central problem. Four Voltages does
 **not** return to a rest voltage when you let go — the output sits at the
@@ -54,15 +80,28 @@ and it sounds.
 
 ---
 
-## Calibrating: hold the switch for two seconds
+## Calibrating
 
 The Four Voltages knob changes every voltage it produces, so the card cannot
 guess and does not try to remember. Teach it whenever you move that knob.
 
-**Calibration starts on its own at power-up** — the learned levels are never
-saved, so it is the first thing you would do anyway. You can also start one any
-time by **holding the momentary switch for 2 seconds**, and abort with the same
-hold. Then, for each of ten steps:
+### Set it up like this
+
+> Use **output 1** of the Four Voltages section, with its **knob at about
+> twelve o'clock**. That gives ten well-spread, reliably separable voltages.
+
+The knob position genuinely matters. It moves all four outputs at once, and
+towards either extreme several combinations collapse onto nearly the same
+voltage — at which point no amount of software can tell them apart.
+
+### Doing it
+
+**Calibration starts on its own at power-up**, since the learned levels are
+never saved and it is the first thing you would do anyway. You can start
+another at any time by **holding the momentary switch for 2 seconds**, and
+abort with the same hold.
+
+Then, for each of ten steps:
 
 1. The LEDs show which buttons to press. **LEDs 0–3 are laid out exactly like
    the A B / C D buttons**, so the pattern *is* the instruction — no counting.
@@ -74,44 +113,45 @@ The order is designed for your hand, not for the computer: the four singles,
 then the pairs as **top row, bottom row, left column, right column, and the two
 diagonals**.
 
-| | |
+| While it runs | |
 |---|---|
 | All six flash | captured |
 | LEDs 4 and 5 flash once | the voltage was still moving — hold steady and tap again |
-| LEDs 4 and 5 flash three times | captured, **but** this combination is too close to another one to tell apart |
-| All six ramp up and fade | done |
-| Ramp and fade, with LEDs 4 + 5 flashing over it | done, but something collided |
-| Columns alternating fast, ~1.5 s | **failed** — nothing usable came in |
-| All six flash twice | aborted (hold for 2s again at any point) |
+| LEDs 4 and 5 flash three times | captured, **but** too close to an earlier combination to tell apart |
+
+### How it ends, and what to do about it
+
+| At the end | Means | Do |
+|---|---|---|
+| All six **ramp up and fade** | Clean calibration | Play |
+| Ramp and fade with **LEDs 4 + 5 flashing** over it | Done, but two combinations are too close to separate | Nudge the Four Voltages knob, hold the switch 2 s, run it again |
+| **Two columns alternating fast**, ~1.5 s | **FAILED** — nothing usable arrived | See below |
+| All six **flash twice** | You aborted it | Previous calibration kept |
+
+**If it fails**, the ten captures spanned less than about 1.2 V — which in
+practice means nothing is patched into **CV In 1**, or the cable is dead. The
+card keeps whatever calibration it had rather than installing a useless one, so
+nothing is lost by a failed attempt.
+
+**If two combinations collide**, move the Four Voltages knob a little and run it
+again. If one output stays stubborn, **try one of the other three** — they
+respond differently to the same buttons, and it costs nothing but moving a
+cable.
+
+Until you have calibrated, the card runs an evenly-spaced guess so it still does
+something. In MELODY, **LED 5 solid** means it is running a real calibration;
+**off** means it is still guessing.
 
 Learning is **not saved across power cycles**, deliberately. A stored
 calibration would be a *wrong* calibration the moment the knob moved, and a card
 that looks calibrated but plays the wrong notes is worse than one that admits it
 knows nothing.
 
-### If it says two combinations collide
-
-Some knob positions genuinely squash two combinations into nearly the same
-voltage, and no amount of software can separate them. Move the Four Voltages
-knob a little and learn again. If one output is stubborn, **try one of the other
-three** — they respond differently to the same buttons, and it costs nothing but
-moving a cable.
-
-Until you calibrate, the card runs an evenly-spaced guess so it still does
-something. In KEYS, **LED 5 solid** means it is running a real calibration;
-**off** means it is still guessing.
-
-### If nothing is patched in
-
-Calibration **fails** rather than pretending. If all ten captures land on
-essentially the same voltage — nothing in CV In 1, a dead cable — the two LED
-columns alternate rapidly for a second and a half and the previous calibration
-is kept. It is a deliberately different pattern from the gentle fade of success
-or the double blink of an abort.
-
 ---
 
-## KEYS
+## MELODY
+
+*Called `KEYS` in the source.* Boots by default.
 
 The ten combinations play ten **degrees** of the selected scale — not ten
 pitches. Combination → degree is fixed forever, so re-learning after moving the
@@ -141,10 +181,12 @@ degrees; adding a second finger climbs.
 | Audio Out 1 | FILTER envelope |
 | Audio Out 2 | LOUDNESS envelope |
 | Pulse Out 1 | Gate on every note |
-| Pulse Out 2 | (unused in KEYS) |
+| Pulse Out 2 | (unused in MELODY) |
 
-The two envelopes are for driving an external filter and VCA — patch them at the
-Humpback filters and an amplifier and one macro knob shapes the whole voice.
+**The two audio outputs carry different envelopes** — that asymmetry is the
+point, and it is what Knob X balances. They are for driving an external filter
+and VCA: patch them at the Humpback filters and an amplifier and one macro knob
+shapes the whole voice.
 They run from about **25 ms to over five seconds**, so the macro covers clicks
 through to long swells. Note the audio outputs are DC-coupled and carry CV
 happily, but they are **not** calibrated the way the CV outputs are: fine for
@@ -194,10 +236,12 @@ keyboard. **CV In 2** transposes upward from there, up to two octaves.
 
 ---
 
-## DRUMS
+## PERCUSSION
 
-Hold the momentary switch at power-on. Same calibration, same ghost rule — but
-the buttons work differently, and this is the important part:
+*Called `DRUMS` in the source.* Hold the momentary switch at power-on.
+
+Same calibration, same ghost rule — but the buttons work differently, and this
+is the important part:
 
 > **A single button is a SHIFT, not a sound. Only pairs make a noise.**
 
@@ -283,6 +327,39 @@ Sixteen voices can ring at once, and when they are all busy the card steals the
 **quietest** rather than the oldest — so a voice near the end of its decay goes
 before one that has just started.
 
+### Panel
+
+| Control | Does |
+|---------|------|
+| **Main** | DJ filter — low-pass left, bypass at centre, high-pass right — **recorded into the loop** |
+| **X** | Tempo, 40–240 BPM — ignored while an external clock is running |
+| **Y** | Kit character: lower and longer ↔ higher and shorter — **recorded into the loop** |
+| **Switch MID** | Play the loop |
+| **Switch UP** | Record / overdub |
+| **Switch tap** | Re-strike the **bass note** the held button is playing |
+| **Switch held 2s** | Calibrate — **and erase the loop** |
+
+### In / out
+
+| Jack | |
+|------|--|
+| CV In 1 | Four Voltages output — the buttons |
+| CV In 2 | (unused in PERCUSSION) |
+| Pulse In 1 | **External clock**, one pulse per beat — overrides the X knob |
+| CV Out 1 | **1V/oct bassline**, played by the single buttons |
+| CV Out 2 | Gate, 5 V, on each live single press — an envelope for the bass |
+| Audio Out 1 | Drum bus, after the DJ filter |
+| Audio Out 2 | The same drum bus — either socket gives you the whole kit |
+| Pulse Out 1 | Gate on every hit, from the buttons or from the loop |
+| Pulse Out 2 | **Click track**, one blip per beat |
+
+The click runs whenever the loop does, so there is something to record along to.
+Patch it at a click voice, or just watch LED 4.
+
+**Both audio outputs carry the same mono bus.** They are not a stereo pair and
+there is no setting that splits them: patch either socket and you get the whole
+kit, which is one less thing to get wrong mid-performance.
+
 ### Riding a recorded knob
 
 **Main** and **Y** are both recorded into the loop, and both work the same way
@@ -304,38 +381,6 @@ eighth of a beat — because no two passes over a knob land on precisely the sam
 moments. Anything within the window counts as "the same place" and gets
 replaced, so re-recording a sweep genuinely overwrites the old one instead of
 interleaving with it.
-
-### Panel
-
-| Control | Does |
-|---------|------|
-| **Main** | DJ filter — low-pass left, bypass at centre, high-pass right — **recorded into the loop** |
-| **X** | Tempo, 40–240 BPM — ignored while an external clock is running |
-| **Y** | Kit character: lower and longer ↔ higher and shorter — **recorded into the loop** |
-| **Switch MID** | Play the loop |
-| **Switch UP** | Record / overdub |
-| **Switch tap** | Re-strike the **bass note** the held button is playing |
-| **Switch held 2s** | Calibrate — **and erase the loop** |
-
-### In / out
-
-| Jack | |
-|------|--|
-| CV In 1 | Four Voltages output — the buttons |
-| CV In 2 | (unused in DRUMS) |
-| Pulse In 1 | **External clock**, one pulse per beat — overrides the X knob |
-| CV Out 1 | **1V/oct bassline**, played by the single buttons |
-| CV Out 2 | Gate, 5 V, on each live single press — an envelope for the bass |
-| Audio Out 1 | Drum bus, after the DJ filter |
-| Audio Out 2 | The same drum bus — either socket gives you the whole kit |
-| Pulse Out 1 | Gate on every hit, from the buttons or from the loop |
-| Pulse Out 2 | **Click track**, one blip per beat |
-
-The click runs whenever the loop does, so there is something to record along to.
-Patch it at a click voice, or just watch LED 4.
-
-Both audio outputs carry the same mono bus rather than a stereo pair — patching
-one socket should give you the whole kit, not half of it.
 
 ### A bassline, for free
 
@@ -417,14 +462,22 @@ them after touching the corresponding C++.
 
 ## Status
 
-**v1.0.0 builds clean and has not yet been tested on hardware.** Everything is
-verified against models and the compiler only. `docs/HARDWARE-TESTING.md` is the
-running order for the first real session, and `docs/DEVLOG.md` records the
-design decisions and the bugs the models caught along the way.
+**Working, and played on hardware.** Ten rounds of hardware feedback have
+settled the behaviour: calibration, the ghost rule and triggering were right on
+first contact, and everything since has been playability — envelope ranges, kit
+balance, the looper's overdub, the external clock, and how the knobs hand over
+between your hand and a recorded sweep.
 
-The open question is whether all ten combinations are reliably separable on a
-real Four Voltages at a usable knob position. The card reports collisions during
-calibration rather than guessing, so it will tell you.
+`docs/DEVLOG.md` records the design decisions and the bugs found along the way,
+several of which were only visible because the trickiest logic is modelled in
+Python before it is written in C++.
+
+### The idea is portable
+
+The calibration and keypress decoding here are not specific to a drum machine or
+a keyboard. Any card can learn a set of button-combination voltages and act on
+them — the ghost rule, the shift-and-tap gesture and the ten-step learn are a
+general technique for making Four Voltages playable. Expect siblings.
 
 ## Credits
 

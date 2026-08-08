@@ -1,5 +1,47 @@
 # NIBBLE devlog
 
+## v1.11.0 — documentation, after calling it working
+
+No code. The card is played and behaving; this is the pass that makes the
+documentation match it.
+
+**A one-liner, in the three places that must agree.** `short-description`, the
+README title block, and the GitHub repo description. "Four buttons. Fifteen
+voltages. Ten notes." stays underneath as the mechanic — it earns its place once
+the purpose has been stated first.
+
+**Boot LEDs got their own section.** They were one sentence under a table, and
+that sentence omitted the state that matters when something is wrong: the splash
+BLINKS rather than holding if the Computer's own CV outputs have no factory
+calibration, which means 1V/oct will not track. That is not a NIBBLE fault, and
+an hour spent blaming the learn pass for it would be an hour wasted.
+
+**Calibration failure was restructured to lead with the fix.** The knob and
+output advice — output 1, knob at twelve o'clock — did not appear anywhere at
+all, despite being the single most useful sentence for a new owner. It is now
+the first thing in the section, ahead of the explanation, because someone
+holding a card with alternating LED columns wants the remedy rather than the
+theory. The four end-of-calibration LED patterns are tabulated with what to do
+about each.
+
+**The two audio outputs.** Asked directly whether they are the same. In MELODY
+they are not — filter and loudness envelopes, and that asymmetry is what Knob X
+balances. In PERCUSSION they are identical by design. Both tables already listed
+this correctly; what was missing was the plain statement that the PERCUSSION
+pair are *intentionally* the same, so nobody hunts for the setting that splits
+them. Considered making Audio 2 a dry, unfiltered bus and decided against it:
+"patch either socket, get the whole kit" is worth more than the extra routing.
+
+**Melody / Percussion** in prose, `KEYS` / `DRUMS` in the source. The mode names
+are noted once in each place so the two stay matchable. The rename stops at the
+documentation deliberately — churning working source for a naming preference is
+how working things stop working.
+
+The Status section had been claiming the card was untested on hardware since
+v1.0.0, ten versions ago.
+
+---
+
 ## v1.10.1 — re-recording a sweep never actually replaced it
 
 Asked for a wider window on overwriting knob automation, on the reasoning that
