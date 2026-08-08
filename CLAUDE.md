@@ -147,6 +147,10 @@ What those sessions changed, in case it saves re-deriving it:
   late by however long a finger stayed down.
 - **LEDs 4 and 5 are dark** while playing in KEYS. Anything that is not
   actionable mid-performance is just a light to learn to ignore.
+- **The drum kit was an octave and a half sharp** — pitch numbers inherited from
+  another card whose phase accumulator was a different width. The accumulator is
+  18-bit now and the table is written as `HzToInc(62)` so it reads as
+  frequencies. Never put a bare increment in that table.
 
 `docs/HARDWARE-TESTING.md` is the running order for the next session and lists
 what is still unaudited. The tolerance constants at the top of `levels.h`
@@ -163,6 +167,7 @@ python tools/ghostsim.py    # the ghost rule + learn round-trip
 python tools/dspsim.py      # DJ filter stability, soft clip
 python tools/loopsim.py     # event ordering, overdub, tempo
 python tools/checkyaml.py   # info.yaml parses AND is structurally complete
+python tools/kittable.py    # regenerate the DRUMS tables for the README
 ```
 
 `tools/syntax.sh` does not link, so it cannot catch a missing symbol — but it

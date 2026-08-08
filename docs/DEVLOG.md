@@ -1,5 +1,51 @@
 # NIBBLE devlog
 
+## v1.7.0 — the kit was an octave and a half sharp
+
+### Writing the documentation found a real bug
+
+Asked to write up the sounds properly. Generating the frequency column from the
+voice table rather than describing it from memory turned up the actual numbers:
+a **kick at 2578 Hz**, a snare at 4688 Hz, and a **crash at 19.9 kHz**, which is
+above most people's hearing. The whole kit was roughly an octave and a half
+sharp.
+
+The cause: the pitch numbers were carried over from Wild Pebble without checking
+that its phase accumulator was the same width as ours. In a column of bare
+integers there is nothing to notice — `220` looks as plausible as any other
+number until you divide by the accumulator width and get kilohertz.
+
+Two fixes. The accumulator is **18 bits** rather than 12, because at 12 bits the
+frequency step is 11.7 Hz and a kick wants ~55 Hz — the nearest available
+pitches were 47 and 59 Hz, with nothing in between. Six extra fractional bits
+bring the step to 0.18 Hz.
+
+And the table is now written as `HzToInc(62)` rather than `220`, so it can be
+read and checked as pitches. That is the durable half of the fix: the unit is in
+the source, so the next person to touch it sees a frequency rather than an
+opaque increment.
+
+### tools/kittable.py
+
+The voice table is exactly the sort of thing that drifts — someone nudges a
+decay shift and the README quotes the old number for a year. It is now parsed
+out of `drums.cpp` and printed as markdown, so the documentation is generated
+from the thing it describes.
+
+It also computes the derived figures the source does not state: audible length,
+pitch-fall time, and level as a percentage. Those are the numbers a player
+actually wants, and none of them are readable off the raw parameters.
+
+### Retuning fell out of having real numbers
+
+With frequencies visible, several voices were obviously wrong beyond the octave
+error: the closed hat lasted 6 ms and the metallic hi-hat 3 ms — clicks rather
+than hats — and tom 1's pitch fall (97 ms) outlasted its own body (46 ms), so
+most of the sweep happened after the sound had gone. Fixed by ear-plausible
+numbers checked against the model rather than guessed.
+
+---
+
 ## v1.6.0 — arming record, and Simmons toms
 
 ### Arming record silenced the loop, again — different cause

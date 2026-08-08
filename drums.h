@@ -20,10 +20,32 @@
 namespace nib {
 
 /// Per-voice character. One struct covers the whole kit.
+/// Phase accumulator width, in bits.
+///
+/// 18, not 12. The obvious 12-bit accumulator (mask 4095) gives a frequency
+/// step of 48000/4096 = 11.7Hz, which is hopeless at the bottom of the kit: a
+/// kick wants ~55Hz and the nearest available pitches are 47Hz and 59Hz. The
+/// first version of this kit inherited its pitch numbers from Wild Pebble
+/// without checking that its accumulator matched, and the whole thing came out
+/// about an octave and a half sharp — a "kick" at 2.5kHz and a crash at 20kHz,
+/// which is above most people's hearing.
+///
+/// Six extra fractional bits bring the step to 0.18Hz, which is inaudible.
+constexpr int kPhaseBits = 18;
+constexpr uint32_t kPhaseMask = (1u << kPhaseBits) - 1;
+constexpr uint32_t kPhaseHalf = 1u << (kPhaseBits - 1);
+
+/// Frequency (Hz) -> phase increment. Use this rather than hand-computed
+/// numbers, so the table below can be read and checked as pitches.
+constexpr uint32_t HzToInc(int32_t hz)
+{
+	return static_cast<uint32_t>((static_cast<int64_t>(hz) << kPhaseBits) / 48000);
+}
+
 struct DrumSpec
 {
-	uint16_t pitch0;      ///< starting phase increment
-	uint16_t pitchFloor;  ///< sweep stops here (== pitch0 means no sweep)
+	uint32_t pitch0;      ///< starting phase increment (use HzToInc)
+	uint32_t pitchFloor;  ///< sweep stops here (== pitch0 means no sweep)
 	uint8_t  decayShift;  ///< body decay; larger = longer
 	uint8_t  noiseShift;  ///< noise decay
 	uint16_t noiseMix;    ///< Q8: 0 = pure tone, 256 = pure noise
@@ -115,10 +137,10 @@ public:
 	bool Active() const { return env_ > 0 || noiseEnv_ > 0; }
 
 private:
-	uint16_t phase_      = 0;
-	uint16_t phase2_     = 0;   ///< second accumulator, metallic voices only
-	uint16_t pitch_      = 0;
-	uint16_t pitchFloor_ = 0;
+	uint32_t phase_      = 0;
+	uint32_t phase2_     = 0;   ///< second accumulator, metallic voices only
+	uint32_t pitch_      = 0;
+	uint32_t pitchFloor_ = 0;
 	int32_t  env_        = 0;
 	int32_t  noiseEnv_   = 0;
 	uint16_t noiseMix_   = 0;

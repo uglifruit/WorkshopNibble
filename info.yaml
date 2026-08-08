@@ -3,7 +3,7 @@ Name: NIBBLE
 short-description: Turns the Four Voltages module into a ten-note keyboard, or a shift-and-tap drum looper
 Language: C++ (ComputerCard)
 Creator: Andy Jenkinson (uglifruit)
-Version: "1.6.0"
+Version: "1.7.0"
 Status: Released
 License: CC-BY-4.0
 repository: https://github.com/uglifruit/WorkshopNibble
@@ -17,7 +17,7 @@ contact:
 
 uf2:
   - path: UF2/nibble.uf2
-    name: NIBBLE 1.6.0
+    name: NIBBLE 1.7.0
 
 tags:
   - keyboard
@@ -68,9 +68,17 @@ summary: |
   from holding B and tapping A. Those close the same switches and give an
   identical voltage - press order is not in the signal - but the level the
   voltage came FROM is the button that was already down, and latching that
-  recovers the ordering for nothing. Hold C and your right hand has closed hat,
-  snare and kick under three fingers; hold D for the tom row; A and B carry the
-  colour, including the crash.<br><br>
+  recovers the ordering for nothing.<br><br>
+
+  THE KIT, all synthesised rather than sampled, which is why one knob can
+  reshape the whole thing: kick (62Hz, swept), deep kick (50Hz), snare (190Hz),
+  snappy snare (230Hz), closed hat, metallic hi-hat, open hi-hat, crash, cowbell,
+  and three Simmons-style toms whose pitch falls exponentially rather than
+  linearly - the "pew" that a linear sweep cannot produce.<br><br>
+
+  Laid out for the hand: HOLD C and a right hand has closed hat, snare and kick
+  under three fingers, which is a whole beat without moving. HOLD D is the tom
+  row for fills. A and B carry the colour and the crash.<br><br>
 
   A four-bar event looper whose overdub is lossless because it records events
   rather than audio, clockable from Pulse In 1, a DJ filter whose movements can
@@ -85,7 +93,7 @@ panel:
     - id: CVIn2
       name: Transpose
       type: cv
-      description: 1V/oct transpose of the whole keyboard, up to two octaves, quantised to semitones so an imprecise voltage cannot leave everything slightly sharp. The root of the scale sits at 0V, so this transposes upward from there. KEYS only, and only active when something is patched. Ignored in DRUMS.
+      description: KEYS - 1V/oct transpose of the whole keyboard, up to two octaves, quantised to semitones so an imprecise voltage cannot leave everything slightly sharp. The root of the scale sits at 0V, so this transposes upward from there, and it is only active when something is actually patched. DRUMS - unused.
     - id: PulseIn1
       name: Retrigger / Clock*
       type: pulse
@@ -106,11 +114,11 @@ panel:
     - id: AudioOut1
       name: Filter Env / Drums*
       type: audio
-      description: KEYS - a snappier envelope intended for a filter cutoff. DRUMS - the drum bus, after the DJ filter.
+      description: KEYS - the FILTER envelope, roughly 24ms to 3.7 seconds, able to go a little snappier than the loudness envelope for plucks. Knob X decides whether it closes before the note fades or outlasts it. DRUMS - the mono drum bus, after the DJ filter.
     - id: AudioOut2
       name: Loudness Env / Drums*
       type: audio
-      description: KEYS - an amplitude envelope, with accent behaviour at the top of the macro. DRUMS - the same drum bus as Audio Out 1, so either socket gives you the whole kit.
+      description: KEYS - the LOUDNESS envelope, roughly 44ms to 5.7 seconds across the macro knob. It is the one standing in for how long the note lasts, so it reaches genuine pad lengths. DRUMS - the same mono drum bus as Audio Out 1, so either socket gives you the whole kit rather than half of it.
     - id: PulseOut1
       name: Gate
       type: pulse
@@ -144,7 +152,7 @@ controls:
         description: KEYS - how that length is split between the filter and the loudness, morphing continuously between DARK (the filter shuts well before the note fades - plucks), BALANCED, and BRIGHT (the filter outlasts the amplitude so the note blooms - pads). DRUMS - tempo, 40 to 240 BPM, ignored while an external clock is running on Pulse In 1. Changing it re-times the pattern rather than pitching it.
       y:
         name: Scale / Kit*
-        description: "KEYS - one of twelve scales, ordered dark to bright from fully anticlockwise, shown on the LEDs as a bar while you turn it: Phrygian, Hirajoshi, Harmonic Minor, Natural Minor, Minor Pentatonic, m7 Arpeggio, Dorian, Major Pentatonic, Ionian (Major), Maj7 Arpeggio, Whole Tone, Chromatic. Because the ten combinations are ten DEGREES, the scale also sets the range - a four-note arpeggio spreads them over more than two octaves while Chromatic packs them into three quarters of one. DRUMS - the character of the whole kit at once, from lower and longer to higher and shorter."
+        description: "KEYS - one of twelve scales, ordered dark to bright from fully anticlockwise, shown on the LEDs as a bar while you turn it: Phrygian, Hirajoshi, Harmonic Minor, Natural Minor, Minor Pentatonic, m7 Arpeggio, Dorian, Major Pentatonic, Ionian (Major), Maj7 Arpeggio, Whole Tone, Chromatic. Because the ten combinations are ten DEGREES, the scale also sets the range - a four-note arpeggio spreads them over more than two octaves while Chromatic packs them into three quarters of one. DRUMS - the character of the whole kit at once, from lower and longer to higher and shorter, roughly half to double pitch and three decay steps either way. Applied when a voice is struck, so sweeping it never warps a sound that is already ringing."
   leds:
     -
       display: list
@@ -170,7 +178,10 @@ host:
 
     CALIBRATION
 
-    Hold the momentary switch for two seconds. Ten steps: the four single
+    Calibration starts by itself about a second after power-up, since the
+    levels are never saved and it is the first thing you would do anyway. Hold
+    the momentary switch for two seconds to start another at any time, or to
+    abort one in progress. Ten steps: the four single
     buttons, then the pairs as top row, bottom row, left column, right column,
     and the two diagonals - an order chosen so your hand alternates shape rather
     than re-forming similar grips. Hold each combination and TAP the switch to
@@ -205,6 +216,53 @@ host:
     only ever decides WHICH combination you pressed. That means moving the Four
     Voltages knob and re-learning gives you exactly the same notes back, which
     would not be true of a quantiser reading those voltages as pitches.
+
+    THE DRUM KIT
+
+    In DRUMS a SINGLE button makes no sound - it is a shift. Only pairs trigger,
+    which is what lets you hold one button and tap the others to repeat a hit as
+    fast as you like. Percussion is mostly repeated hits on the same drum, and a
+    keyboard reading of the buttons cannot do that: to play a sound twice you
+    must pass back through the held button, and if that were itself a sound then
+    every repeat would be interrupted.
+
+    Twelve voices, because hold-A-tap-B and hold-B-tap-A are different gestures
+    even though they close the same switches:
+
+      HOLD A   tap B cowbell    tap C metallic hi-hat  tap D open hi-hat
+      HOLD B   tap A CRASH      tap C deep kick        tap D snappy snare
+      HOLD C   tap A closed hat tap B snare            tap D kick
+      HOLD D   tap A tom 1      tap B syn tom 2        tap C syn drum 3
+
+    Hold C and a right hand has closed hat, snare and kick under three fingers.
+    Hold D for the tom row. A and B carry the colour and the crash.
+
+    Every voice is synthesised: a pitched body, a noise component, and an
+    exponential decay on each. Kick 62Hz swept to 45Hz over 6ms; deep kick 50Hz;
+    snare 190Hz; snappy snare 230Hz; closed hat 6kHz; hi-hats 7.6kHz; crash
+    5.2kHz. The three cymbal voices are ring-modulated against a second
+    oscillator at a non-integer ratio so they clang rather than hiss.
+
+    The toms fall in pitch EXPONENTIALLY - 420Hz to 90Hz over about 50ms, fast
+    then easing in - which is what makes a Simmons-style tom sound like one. A
+    linear fall reaches the floor in a few milliseconds and spends the rest of
+    the note at one pitch.
+
+    Voices carry their own level, because peak amplitude stops being a proxy for
+    loudness once decay times differ by two orders of magnitude: a 0.9-second
+    crash at full scale delivers many times a kick's energy. The crash sits at
+    20 percent, the kicks and snare at full.
+
+    THE LOOPER
+
+    Four bars, recording EVENTS rather than audio, so overdubbing never degrades
+    what is already there and the tempo knob re-times a pattern instead of
+    pitching it. An event stores WHICH SOUND - kick, snare, crash - not which
+    buttons made it, because how a hit was played belongs to the performance.
+
+    Hits quantise to 1/16 on playback; filter sweeps deliberately do not.
+    Arming record never silences the loop and never writes the knob's resting
+    position - automation is recorded only once the knob actually moves.
 
     LICENCE - CC-BY-4.0 covers this card's source: use, fork or sell it, just
     credit Andy Jenkinson (uglifruit). ComputerCard.h is Chris Johnson's and

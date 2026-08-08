@@ -24,20 +24,26 @@ namespace nib {
 /// change what an existing loop plays.
 ///
 /// Index order is the display order, and matches kVoiceName below.
+/// Pitches are written as HzToInc(...) so the table can be READ as frequencies
+/// and checked against what a drum should be. The first version of this kit
+/// carried raw increments inherited from another card whose accumulator was a
+/// different width, and every voice came out about an octave and a half sharp —
+/// a "kick" at 2.5kHz — which is invisible in a column of bare integers and
+/// obvious the moment the unit is in the source.
 const DrumSpec kVoices[kNumVoices] = {
-	// pitch0 floor decay noise  mix  fall  metal level   (fall: bigger = slower)
-	{  220,    4,    11,    0,     0,   7,    0,  256 },   // 0  kick
-	{  180,    4,    12,    0,     0,   8,    0,  170 },   // 1  kick deep
-	{  400,   24,     9,    7,   140,   6,    0,  256 },   // 2  snare
-	{  330,   30,     8,   10,   200,   6,    0,  230 },   // 3  snare snappy
-	{  900,  900,     6,    6,   256,   0,    0,  220 },   // 4  closed hat
-	{ 1300, 1300,     5,    5,   256,   0,    1,  200 },   // 5  hi-hat metallic
-	{ 1300, 1300,    11,   11,   256,   0,    1,  110 },   // 6  open hi-hat
-	{ 1700, 1700,    14,   14,   256,   0,    1,   52 },   // 7  crash
-	{ 1100, 1100,     7,    0,     0,   0,    0,  230 },   // 8  cowbell
-	{  600,   60,     9,    0,     0,  11,    0,  230 },   // 9  tom 1 "pew"
-	{  420,  140,    11,    8,    20,  11,    0,  180 },   // 10 syn tom 2
-	{  520,  110,    10,    6,    40,  10,    0,  200 },   // 11 syn drum 3
+	//  from        to        decay noise  mix  fall metal level
+	{ HzToInc(62), HzToInc(45),  11,   0,    0,   7,   0,  256 },  // 0  kick
+	{ HzToInc(50), HzToInc(38),  12,   0,    0,   8,   0,  200 },  // 1  kick deep
+	{ HzToInc(190),HzToInc(150),  9,   7,  140,   6,   0,  256 },  // 2  snare
+	{ HzToInc(230),HzToInc(180),  8,  10,  200,   6,   0,  230 },  // 3  snare snappy
+	{ HzToInc(6000),HzToInc(6000),9,   9,  256,   0,   0,  220 },  // 4  closed hat
+	{ HzToInc(7600),HzToInc(7600),8,   8,  256,   0,   1,  200 },  // 5  hi-hat metallic
+	{ HzToInc(7600),HzToInc(7600),11, 11,  256,   0,   1,  110 },  // 6  open hi-hat
+	{ HzToInc(5200),HzToInc(5200),14, 14,  256,   0,   1,   52 },  // 7  crash
+	{ HzToInc(800),HzToInc(800), 11,   0,    0,   0,   0,  230 },  // 8  cowbell
+	{ HzToInc(420),HzToInc(90),  11,   0,    0,  10,   0,  230 },  // 9  tom 1 "pew"
+	{ HzToInc(300),HzToInc(110), 11,   8,   20,  11,   0,  180 },  // 10 syn tom 2
+	{ HzToInc(360),HzToInc(120), 10,   6,   40,  10,   0,  200 },  // 11 syn drum 3
 };
 
 /// Which voice each (shift, tap) gesture plays. This is the ONLY place the
@@ -90,17 +96,20 @@ inline int32_t SoftClip(int32_t x)
 
 void DrumVoice::Trigger(const DrumSpec &spec, int32_t pitchScaleQ16, int32_t decayAdj)
 {
-	int32_t p0 = mul_q16(spec.pitch0,     pitchScaleQ16);
-	int32_t pf = mul_q16(spec.pitchFloor, pitchScaleQ16);
-	if (p0 < 4) p0 = 4;
-	if (pf < 4) pf = 4;
-	if (p0 > 4095) p0 = 4095;
-	if (pf > 4095) pf = 4095;
+	int32_t p0 = mul_q16(static_cast<int32_t>(spec.pitch0),     pitchScaleQ16);
+	int32_t pf = mul_q16(static_cast<int32_t>(spec.pitchFloor), pitchScaleQ16);
+	// Floor at ~20Hz and ceiling below Nyquist.
+	constexpr int32_t kMinInc = HzToInc(20);
+	constexpr int32_t kMaxInc = HzToInc(16000);
+	if (p0 < kMinInc) p0 = kMinInc;
+	if (pf < kMinInc) pf = kMinInc;
+	if (p0 > kMaxInc) p0 = kMaxInc;
+	if (pf > kMaxInc) pf = kMaxInc;
 
 	phase_      = 0;
 	phase2_     = 0;
-	pitch_      = static_cast<uint16_t>(p0);
-	pitchFloor_ = static_cast<uint16_t>(pf);
+	pitch_      = static_cast<uint32_t>(p0);
+	pitchFloor_ = static_cast<uint32_t>(pf);
 	noiseMix_   = spec.noiseMix;
 	sweepShift_ = spec.sweepShift ? spec.sweepShift : 8;
 	pitchDiff_  = spec.sweepShift ? ((p0 - pf) << 8) : 0;
@@ -127,12 +136,15 @@ int32_t __not_in_flash_func(DrumVoice::Step)(uint32_t &rng)
 	if (env_ <= 0 && noiseEnv_ <= 0) return 0;
 
 	// --- body: a triangle folded out of a 12-bit phase accumulator ---
-	phase_ = static_cast<uint16_t>((phase_ + pitch_) & 4095);
+	phase_ = (phase_ + pitch_) & kPhaseMask;
 
-	int32_t osc;
-	if (phase_ & 2048) osc = 2048 - (phase_ & 2047);
-	else               osc = phase_ & 2047;
-	osc = (osc - 1024) << 1;                      // centre and scale to +/-2047
+	// Triangle, folded out of the accumulator and scaled to +/-2047 regardless
+	// of the accumulator width.
+	int32_t tri = (phase_ & kPhaseHalf)
+	            ? static_cast<int32_t>(kPhaseHalf - (phase_ & (kPhaseHalf - 1)))
+	            : static_cast<int32_t>(phase_ & (kPhaseHalf - 1));
+	int32_t osc = ((tri - static_cast<int32_t>(kPhaseHalf / 2)) * 2047)
+	            / static_cast<int32_t>(kPhaseHalf / 2);
 
 	// Pitch sweep — EXPONENTIAL, decaying the distance to the floor rather than
 	// stepping the pitch down linearly.
@@ -151,7 +163,7 @@ int32_t __not_in_flash_func(DrumVoice::Step)(uint32_t &rng)
 	{
 		pitchDiff_ -= (pitchDiff_ >> sweepShift_) + 1;
 		if (pitchDiff_ < 0) pitchDiff_ = 0;
-		pitch_ = static_cast<uint16_t>(pitchFloor_ + (pitchDiff_ >> 8));
+		pitch_ = pitchFloor_ + static_cast<uint32_t>(pitchDiff_ >> 8);
 	}
 
 	// --- noise ---
@@ -169,10 +181,10 @@ int32_t __not_in_flash_func(DrumVoice::Step)(uint32_t &rng)
 	// would lock the two into a harmonic relationship and sound like a tone.
 	if (metal_)
 	{
-		phase2_ = static_cast<uint16_t>((phase2_ + ((pitch_ * 3) / 2 + 37)) & 4095);
-		if (phase2_ & 2048) noise = -noise;
+		phase2_ = (phase2_ + (pitch_ * 3) / 2 + HzToInc(37)) & kPhaseMask;
+		if (phase2_ & kPhaseHalf) noise = -noise;
 		// Square the body too, so the metal voices are all edge and no thud.
-		osc = (phase_ & 2048) ? 2047 : -2047;
+		osc = (phase_ & kPhaseHalf) ? 2047 : -2047;
 	}
 
 	// --- decays ---

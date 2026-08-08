@@ -220,15 +220,53 @@ the ordering and doubles the kit for free.
 
 | Hold | tap A | tap B | tap C | tap D |
 |------|-------|-------|-------|-------|
-| **A** | — | cowbell | hi-hat (alt) | open hi-hat |
-| **B** | **crash** | — | kick (deep) | snare (snappy) |
-| **C** | closed hat | **snare** | — | **kick** |
+| **A** | — | cowbell | hi-hat metallic | open hi-hat |
+| **B** | crash | — | kick deep | snare snappy |
+| **C** | closed hat | snare | — | kick |
 | **D** | tom 1 "pew" | syn tom 2 | syn drum 3 | — |
 
 **Hold C** is the workhorse: with a right thumb on C, A / B / D fall under the
 fingers as closed hat, snare and kick — a whole beat without moving your hand.
 **Hold D** is the tom row for fills. **A** and **B** carry the colour, including
 the crash.
+
+### The sounds
+
+All synthesised: a pitched body, a noise component, and an exponential decay on
+each. Nothing is sampled, which is why the **Y knob** can reshape the whole kit
+at once — every number below is a live variable, not a recording.
+
+| Sound | Pitch | Fall | Length | Level |
+|-------|-------|------|--------|-------|
+| kick | 62 → 45 Hz | 6 ms | 182 ms | 100% |
+| kick deep | 50 → 38 Hz | 12 ms | 331 ms | 78% |
+| snare | 190 → 150 Hz | 3 ms | 40 ms | 100% |
+| snare snappy | 230 → 180 Hz | 3 ms | 86 ms | 90% |
+| closed hat | 6000 Hz | — | 46 ms | 86% |
+| hi-hat metallic | 7600 Hz | — | 23 ms | 78% |
+| open hi-hat | 7600 Hz | — | 153 ms | 43% |
+| crash | 5200 Hz | — | 874 ms | 20% |
+| cowbell | 800 Hz | — | 178 ms | 90% |
+| tom 1 "pew" | 420 → 90 Hz | 49 ms | 178 ms | 90% |
+| syn tom 2 | 300 → 110 Hz | 97 ms | 166 ms | 70% |
+| syn drum 3 | 360 → 120 Hz | 49 ms | 86 ms | 78% |
+
+**Pitch** is where the body starts and, where it sweeps, where it lands.
+**Fall** is how long that sweep takes — the exponential drop that makes the toms
+read as Simmons-style rather than as short bass notes. **Length** is how long
+the voice stays audible. **Level** is its weight in the mix: the crash sits at
+20% because a 0.9-second wash at full scale carries many times a kick's energy
+and buries everything.
+
+The three cymbal voices — **hi-hat metallic**, **open hi-hat** and **crash** —
+are *ring-modulated* against a second oscillator at a deliberately non-integer
+ratio, which is what makes them clang rather than hiss. The plain **closed hat**
+is not, so the two hats sit differently in a pattern.
+
+**Y** shifts the whole kit together: anticlockwise is lower and longer,
+clockwise higher and shorter, roughly half to double pitch and ±3 decay steps.
+It applies when a voice is *struck*, so sweeping the knob never warps a sound
+that is already ringing.
 
 ### Panel
 
@@ -242,9 +280,25 @@ the crash.
 | **Switch tap** | Retrigger the last sound |
 | **Switch held 2s** | Calibrate — **and erase the loop** |
 
-**Pulse Out 2 is a click track** — one blip per beat, running whenever the loop
-is, so you have something to record along to. Patch it at a click voice, or just
-watch LED 4.
+### In / out
+
+| Jack | |
+|------|--|
+| CV In 1 | Four Voltages output — the buttons |
+| CV In 2 | (unused in DRUMS) |
+| Pulse In 1 | **External clock**, one pulse per beat — overrides the X knob |
+| CV Out 1 | **1V/oct bassline**, played by the single buttons |
+| CV Out 2 | Gate, 5 V, on each live single press — an envelope for the bass |
+| Audio Out 1 | Drum bus, after the DJ filter |
+| Audio Out 2 | The same drum bus — either socket gives you the whole kit |
+| Pulse Out 1 | Gate on every hit, from the buttons or from the loop |
+| Pulse Out 2 | **Click track**, one blip per beat |
+
+The click runs whenever the loop does, so there is something to record along to.
+Patch it at a click voice, or just watch LED 4.
+
+Both audio outputs carry the same mono bus rather than a stereo pair — patching
+one socket should give you the whole kit, not half of it.
 
 ### A bassline, for free
 
