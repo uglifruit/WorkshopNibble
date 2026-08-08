@@ -91,16 +91,21 @@ constexpr int32_t kMatchWindow = 96;
 /// reading could plausibly land on the wrong side of the midpoint between them.
 ///
 /// This started at 64 — a guess made before any hardware existed, and 1.3x
-/// stricter than even that theoretical limit. On the bench it cried wolf:
-/// combinations it flagged were being played reliably, which teaches the player
-/// to ignore the warning, which is worse than not warning at all.
+/// stricter than even that theoretical limit. On the bench it cried wolf twice
+/// over: combinations it flagged were being played reliably, first at 64 and
+/// again at 40. A warning that fires on things that work teaches the player to
+/// ignore the warning, which is worse than not warning at all.
 ///
-/// 40 is deliberately BELOW the theoretical limit, so it stays quiet unless two
-/// levels are genuinely on top of each other. The trade is accepted knowingly:
-/// a pair between 40 and 48 apart may occasionally flicker under drift without
-/// having been flagged. A warning that means something is worth more than one
-/// that covers every case.
-constexpr int32_t kCollisionMin = 40;
+/// 32 is deliberately well BELOW the theoretical limit, so it stays quiet
+/// unless two levels are genuinely on top of each other. The model puts real
+/// misclassification at gaps of 16 and under, so this still leaves a factor of
+/// two — and everything between 32 and 48 is now trusted rather than flagged.
+///
+/// The trade is accepted knowingly: a pair in that band may occasionally
+/// flicker under drift without having been flagged. Tuned against hardware
+/// rather than theory, because the bench is the only thing that can say whether
+/// a warning is useful or merely correct.
+constexpr int32_t kCollisionMin = 32;
 
 /// Input smoothing on the raw CV. Kills ADC dither without smearing an edge.
 constexpr uint8_t kCvSmoothShift = 3;

@@ -1,5 +1,23 @@
 # NIBBLE devlog
 
+## v1.11.4 — the collision warning, quieter still
+
+Still fussy on the bench at 40, so down to **32** (~95 mV).
+
+Worth recording the shape of this, because it took three passes: 64 was a guess
+made before hardware existed, 40 was reasoned from `kSettleTol`, and 32 comes
+from actually playing it. Theory said 48 was the limit; the bench says
+combinations far tighter than that stay perfectly distinct.
+
+Checked for the failure mode that matters — a gap that is broken *and*
+unflagged. There isn't one. Real misclassification starts at 16 and under, both
+of which are still caught, so 32 leaves a factor of two rather than cutting it
+fine. "Nothing patched in" continues to fail on the span check regardless.
+
+`tools/ghostsim.py` mirrors the constant and moved with it.
+
+---
+
 ## v1.11.3 — demo videos, and panel labels
 
 Two-part demo and walkthrough added. The registry's `demo-link` takes a single
