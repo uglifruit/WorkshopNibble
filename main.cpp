@@ -496,7 +496,11 @@ private:
 	void __not_in_flash_func(DrumsControl)()
 	{
 		Switch sw = SwitchVal();
-		recording_ = (sw == Switch::Up);
+		// Arming or releasing record re-seeds the filter reference, so the first
+		// sample after the transition cannot be mistaken for a knob move.
+		bool nowRecording = (sw == Switch::Up);
+		if (nowRecording != recording_) loop_.ArmFilter();
+		recording_ = nowRecording;
 
 		loop_.SetTempo(KnobVal(Knob::X));
 		djFilter_.SetKnob(filterOverride_ >= 0 ? filterOverride_

@@ -1,5 +1,52 @@
 # NIBBLE devlog
 
+## v1.6.0 — arming record, and Simmons toms
+
+### Arming record silenced the loop, again — different cause
+
+v1.3 fixed the version of this where recorded automation stopped applying while
+recording. This was the mirror image: `RecordFilter()` had no reference on its
+first call after the switch went up, so it read as a move and immediately
+stamped the knob's *physical* position into the loop at the playhead. Park the
+knob at a closed low-pass and the pattern goes quiet the moment you arm.
+
+Arming now only seeds the reference. Automation is written when the knob
+genuinely moves while recording — reach for it and it records, leave it alone
+and the existing sweep is untouched. `ArmFilter()` re-seeds on both transitions,
+so releasing and re-arming cannot compare against a stale value from an earlier
+pass.
+
+Worth noting the pattern: both bugs were "a transition into record does
+something to the filter". That is the place to look first if it happens again.
+
+### The toms fell linearly, which is the wrong shape
+
+Asked for a Simmons-style pitch fall. The sweep was `pitch--` every N samples —
+a straight line, which for tom 1 reached the floor in about **11 ms** and then
+sat there. Almost the whole note was at one pitch and the sweep was just a click
+at the front.
+
+Decaying the *distance to the floor* instead gives an exponential glide: fast at
+first, easing in at the bottom. That is the "pew". Tom 1 and syn tom 2 now fall
+over ~95 ms, syn drum 3 over ~48 ms, while the kicks keep a fast 6–12 ms thump
+and the snares 3 ms.
+
+The `sweepRate` field became `sweepShift` and changed meaning (bigger is now
+slower), so every voice's value had to be re-derived rather than carried over.
+The difference is a Q8 accumulator for the same reason the envelopes carry
+headroom — a plain shift on a small integer stalls, and the pitch would stop
+short of the floor.
+
+### Crash
+
+Shortened to shift 14: the audible tail drops from ~1.5 s to ~0.9 s, and total
+energy from 2.1× a kick to about 1.5×. Not the 75% asked for — decay shifts are
+a factor of ~1.7 apart, and hitting 75% exactly would have meant raising the
+level back up, undoing last round's loudness fix. Took the shorter, quieter
+option deliberately.
+
+---
+
 ## v1.5.0 — levels, and the loop stores sounds
 
 ### The crash was not slightly hot

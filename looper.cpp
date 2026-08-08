@@ -188,8 +188,26 @@ void Looper::RecordFilter(int32_t knob)
 	if (filterCountdown_ > 0) return;
 	filterCountdown_ = kFilterSampleTicks;
 
-	if (lastFilter_ >= 0 && (knob - lastFilter_ < kKnobMoveThresh)
-	                     && (lastFilter_ - knob < kKnobMoveThresh))
+	// Arming record must not, by itself, write anything.
+	//
+	// lastFilter_ starts unset, so the FIRST call after switching to record used
+	// to look like a move and immediately stamp the knob's physical position
+	// into the loop. If the knob happened to be parked at a closed low-pass,
+	// that silenced the pattern the instant you armed — which is precisely what
+	// arming record must never do, because it is when you are trying to play
+	// along.
+	//
+	// Seeding the reference instead means automation is only written once the
+	// knob genuinely MOVES while recording. Reach for it and it records; leave
+	// it alone and the existing sweep is untouched.
+	if (lastFilter_ < 0)
+	{
+		lastFilter_ = knob;
+		return;
+	}
+
+	if ((knob - lastFilter_ < kKnobMoveThresh)
+	 && (lastFilter_ - knob < kKnobMoveThresh))
 		return;
 	lastFilter_ = knob;
 

@@ -25,19 +25,19 @@ namespace nib {
 ///
 /// Index order is the display order, and matches kVoiceName below.
 const DrumSpec kVoices[kNumVoices] = {
-	// pitch0 floor decay noise  mix  sweep metal level
-	{  220,    4,    11,    0,     0,   2,    0,  256 },   // 0  kick
-	{  180,    4,    12,    0,     0,   3,    0,  170 },   // 1  kick deep
-	{  400,   24,     9,    7,   140,   1,    0,  256 },   // 2  snare
-	{  330,   30,     8,   10,   200,   1,    0,  230 },   // 3  snare snappy
+	// pitch0 floor decay noise  mix  fall  metal level   (fall: bigger = slower)
+	{  220,    4,    11,    0,     0,   7,    0,  256 },   // 0  kick
+	{  180,    4,    12,    0,     0,   8,    0,  170 },   // 1  kick deep
+	{  400,   24,     9,    7,   140,   6,    0,  256 },   // 2  snare
+	{  330,   30,     8,   10,   200,   6,    0,  230 },   // 3  snare snappy
 	{  900,  900,     6,    6,   256,   0,    0,  220 },   // 4  closed hat
 	{ 1300, 1300,     5,    5,   256,   0,    1,  200 },   // 5  hi-hat metallic
 	{ 1300, 1300,    11,   11,   256,   0,    1,  110 },   // 6  open hi-hat
-	{ 1700, 1700,    15,   15,   256,   0,    1,   40 },   // 7  crash
+	{ 1700, 1700,    14,   14,   256,   0,    1,   52 },   // 7  crash
 	{ 1100, 1100,     7,    0,     0,   0,    0,  230 },   // 8  cowbell
-	{  600,   60,     9,    0,     0,   1,    0,  230 },   // 9  tom 1 "pew"
-	{  420,  140,    11,    8,    20,   1,    0,  180 },   // 10 syn tom 2
-	{  520,  110,    10,    6,    40,   1,    0,  200 },   // 11 syn drum 3
+	{  600,   60,     9,    0,     0,  11,    0,  230 },   // 9  tom 1 "pew"
+	{  420,  140,    11,    8,    20,  11,    0,  180 },   // 10 syn tom 2
+	{  520,  110,    10,    6,    40,  10,    0,  200 },   // 11 syn drum 3
 };
 
 /// Which voice each (shift, tap) gesture plays. This is the ONLY place the
@@ -102,8 +102,8 @@ void DrumVoice::Trigger(const DrumSpec &spec, int32_t pitchScaleQ16, int32_t dec
 	pitch_      = static_cast<uint16_t>(p0);
 	pitchFloor_ = static_cast<uint16_t>(pf);
 	noiseMix_   = spec.noiseMix;
-	sweepRate_  = spec.sweepRate;
-	sweepCount_ = 0;
+	sweepShift_ = spec.sweepShift ? spec.sweepShift : 8;
+	pitchDiff_  = spec.sweepShift ? ((p0 - pf) << 8) : 0;
 	metal_      = spec.metal;
 	level_      = spec.level ? spec.level : kLevelFull;
 
@@ -134,15 +134,24 @@ int32_t __not_in_flash_func(DrumVoice::Step)(uint32_t &rng)
 	else               osc = phase_ & 2047;
 	osc = (osc - 1024) << 1;                      // centre and scale to +/-2047
 
-	// Pitch sweep. A falling pitch during the decay is what makes a kick read
-	// as a kick rather than as a short bass note.
-	if (sweepRate_ && pitch_ > pitchFloor_)
+	// Pitch sweep — EXPONENTIAL, decaying the distance to the floor rather than
+	// stepping the pitch down linearly.
+	//
+	// This is what makes a Simmons-style tom sound like one. A linear fall
+	// (`pitch--` every N samples, which is what this used to do) reaches the
+	// floor in about 11ms and then sits there, so almost the whole note is at
+	// one pitch and the sweep is a click at the front. Decaying the DIFFERENCE
+	// glides down over 50-150ms: fast at first, easing in at the bottom, which
+	// is the "pew" the ear is listening for.
+	//
+	// The difference is kept in a Q8 accumulator for the same reason the
+	// envelopes carry headroom — a plain shift on a small integer stalls, and
+	// the pitch would stop short of the floor.
+	if (pitchDiff_ > 0)
 	{
-		if (++sweepCount_ >= sweepRate_)
-		{
-			sweepCount_ = 0;
-			pitch_--;
-		}
+		pitchDiff_ -= (pitchDiff_ >> sweepShift_) + 1;
+		if (pitchDiff_ < 0) pitchDiff_ = 0;
+		pitch_ = static_cast<uint16_t>(pitchFloor_ + (pitchDiff_ >> 8));
 	}
 
 	// --- noise ---

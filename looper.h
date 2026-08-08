@@ -110,7 +110,16 @@ public:
 	void RecordHit(int8_t voice, uint8_t velocity);
 
 	/// Record a filter-knob position, if it has moved enough to be worth it.
+	///
+	/// The first call after ArmFilter() only seeds the reference — arming record
+	/// must never itself write automation, or the knob's resting position gets
+	/// stamped into the loop and can silence it.
 	void RecordFilter(int32_t knob);
+
+	/// Called when record is armed or released. Drops the knob reference so the
+	/// next RecordFilter() re-seeds instead of comparing against a stale value
+	/// from a previous pass.
+	void ArmFilter() { lastFilter_ = -9999; }
 
 	/// Fire every event scheduled for the current tick.
 	/// `outCombo` receives drum hits; `outFilter` receives automation.

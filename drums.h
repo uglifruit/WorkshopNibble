@@ -27,7 +27,10 @@ struct DrumSpec
 	uint8_t  decayShift;  ///< body decay; larger = longer
 	uint8_t  noiseShift;  ///< noise decay
 	uint16_t noiseMix;    ///< Q8: 0 = pure tone, 256 = pure noise
-	uint8_t  sweepRate;   ///< samples per pitch decrement; 0 = no sweep
+	uint8_t  sweepShift;  ///< pitch-fall rate: SMALLER = faster. 0 = no sweep.
+	                      ///< The fall is exponential (decaying the distance to
+	                      ///< pitchFloor), not linear, because that is what makes
+	                      ///< a Simmons tom sound like one — see DrumVoice::Step.
 	uint8_t  metal;       ///< 0 = normal, 1 = ring-modulated metallic (cymbals)
 	uint16_t level;       ///< Q8 output gain, 256 = full. See below.
 };
@@ -121,8 +124,8 @@ private:
 	uint16_t noiseMix_   = 0;
 	uint8_t  decayShift_ = 10;
 	uint8_t  noiseShift_ = 10;
-	uint8_t  sweepRate_  = 0;
-	uint8_t  sweepCount_ = 0;
+	uint8_t  sweepShift_ = 0;
+	int32_t  pitchDiff_  = 0;   ///< Q8 distance still to fall
 	uint8_t  metal_      = 0;
 	uint16_t level_      = kLevelFull;
 };
