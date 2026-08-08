@@ -1,5 +1,57 @@
 # NIBBLE devlog
 
+## v1.4.0 — twelve voices out of six combinations
+
+### Press order is not in the voltage, but it is recoverable
+
+Asked whether the card could tell A-held-tap-B from B-held-tap-A. The honest
+first answer was **no**: both close the same two switches, so the resistor
+network produces one identical level. Order is not in the signal.
+
+But it is in the *approach*. Holding A and tapping B arrives at the AB level
+**from A**; holding B and tapping A arrives at the same level **from B**. The
+detector already knew the previous level — it just threw it away. Latching it at
+the moment a pair triggers recovers the ordering the voltage lost, and turns six
+combinations into twelve gestures for the cost of one `int8_t`.
+
+That is the whole change, and it is worth noticing that the information was
+sitting there the entire time: the ghost rule was already using the same
+"where did we come from" signal to suppress releases.
+
+The kit is now indexed `[shift][tap]` rather than by combination. The loop still
+records combinations — a fifth byte per event to store the ordering was not
+worth it, and a replayed pattern keeps its voice either way.
+
+### The drum envelopes had the same bug as the KEYS ones
+
+Found while checking the crash would actually ring. `e -= (e >> shift) + 1` caps
+out once the `+1` dominates, which at a 4095 peak is around shift 12 — so shifts
+12 and 13 were **identical**, everything topped out at 85 ms, and a "crash" was
+a blip. Exactly the bug fixed in `keys.h` three versions ago, still sitting in
+`drums.cpp` because nothing had needed a long drum until now.
+
+Six bits of headroom (`kDrumEnvFrac`) puts the range at ~6 ms to ~1.9 s. The
+crash is 1.9 s, the kicks have real body at 230–400 ms, the closed hat is 12 ms.
+The Y knob's ±3 shift is meaningful at both ends now instead of doing nothing
+above the middle.
+
+### A metallic voice type
+
+Cymbals need more than filtered noise, which reads as "shh". The `metal` flag
+ring-modulates the noise against a second phase accumulator at a deliberately
+non-integer ratio (about 1.47×, plus an offset so it never locks), and squares
+the body so the voice is all edge and no thud. Two accumulators and a sign flip
+— no extra filters, no tables.
+
+### Layout notes
+
+The mapping is the player's, chosen for the hand rather than for tidiness: a
+right thumb on **C** leaves closed hat, snare and kick under the fingers, which
+is a whole beat without moving. **D** is the tom row for fills, **A** and **B**
+carry colour and the crash.
+
+---
+
 ## v1.3.0 — playability
 
 ### Recording muted the loop, which made overdubbing nearly impossible

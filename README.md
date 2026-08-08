@@ -24,7 +24,7 @@ Four buttons is four bits is one nibble. Hence the name.
 | Boot | How | What |
 |------|-----|------|
 | **KEYS** | normal power-on | A ten-note keyboard: pitch and harmony on 1V/oct, two envelope CVs, a gate. |
-| **DRUMS** | hold the momentary switch at power-on | Six parametric percussion voices played shift-and-tap, a four-bar event looper with lossless overdub, and a DJ filter. |
+| **DRUMS** | hold the momentary switch at power-on | Twelve parametric percussion voices played shift-and-tap, a four-bar event looper with lossless overdub, a DJ filter, and a bassline. |
 
 The LEDs say which one you got: KEYS lights the left column, DRUMS the right.
 
@@ -34,8 +34,8 @@ The LEDs say which one you got: KEYS lights the left column, DRUMS the right.
 
 This is the technique the card is built around, and it is worth learning first.
 
-**Hold C. Tap A.** You get the AC sound. Let go of A — silence, no retrigger.
-**Tap B.** You get BC. Let go — silence again. **Tap A.** AC again.
+**Hold C. Tap A.** You get a closed hat. Let go of A — silence, no retrigger.
+**Tap B.** A snare. Let go — silence again. **Tap A.** Closed hat again.
 
 The held finger is a bank-select; the tapping finger plays. It repeats
 indefinitely with no spurious hits, and it works exactly the same in KEYS.
@@ -211,39 +211,24 @@ back through C, and if C were itself a sound then every repeat would be
 interrupted by a spurious one. Silent singles make the four buttons into
 bank-selects you can hold for as long as you want.
 
-Six voices, one per pair — and because these six are all you can reach with your
-fingers, they are a whole kit rather than a box of extras:
+**Twelve** voices, because **A-held-tap-B is not the same as B-held-tap-A**.
 
-| Pair | Shape | Sound |
-|------|-------|-------|
-| **A+B** | top row | kick |
-| **C+D** | bottom row | snare |
-| **A+C** | left column | closed hat |
-| **B+D** | right column | rim |
-| **A+D** | diagonal | clap |
-| **B+C** | anti-diagonal | open hat |
-
-Which means every shift gives you three usable voices under one hand:
+Those two close the same switches and produce an identical voltage — press order
+simply is not in the signal. What the card *can* see is the level the voltage
+came *from*, which is the button that was already down. Latching that recovers
+the ordering and doubles the kit for free.
 
 | Hold | tap A | tap B | tap C | tap D |
 |------|-------|-------|-------|-------|
-| **A** | — | kick | closed hat | clap |
-| **B** | kick | — | open hat | rim |
-| **C** | closed hat | open hat | — | snare |
-| **D** | clap | rim | snare | — |
+| **A** | — | cowbell | hi-hat (alt) | open hi-hat |
+| **B** | **crash** | — | kick (deep) | snare (snappy) |
+| **C** | closed hat | **snare** | — | **kick** |
+| **D** | tom 1 "pew" | syn tom 2 | syn drum 3 | — |
 
-Hold **A** and you have kick, hat and clap without moving your hand. Kick and
-snare are each reachable from two different shifts, so you rarely have to
-re-grip mid-bar.
-
-Everything is **synthesised, not sampled**: pitch-swept triangle bodies with
-exponential decay and a noise mix per voice, in the manner of Wild Pebble. That
-is why the Y knob can reshape the whole kit at once — the parameters are live
-variables rather than fixed audio — and why the card needs no flash region, no
-USB and no upload tool.
-
-It also keeps the kit *playable* rather than fixed: one knob takes it from deep
-and slow to tight and clicky without a resampler in the way.
+**Hold C** is the workhorse: with a right thumb on C, A / B / D fall under the
+fingers as closed hat, snare and kick — a whole beat without moving your hand.
+**Hold D** is the tom row for fills. **A** and **B** carry the colour, including
+the crash.
 
 ### Panel
 

@@ -13,6 +13,10 @@ hits.
 tuning oscillators together — and was silently clipping the top of wide scales.
 LEDs 4 and 5 lit in KEYS for no useful reason. Wanted a click track.
 
+**Session 4 asked for** twelve ordered voices instead of six, which needed the
+press order recovering from the approach direction, and better kicks, snares and
+a crash — which turned up the same envelope-capping bug the KEYS side had.
+
 **Session 3 found:** arming record muted the loop (the filter snapped to the
 physical knob), which made overdubbing nearly impossible. The momentary fired on
 release rather than press, so every retrigger landed late. Wanted a bassline off
@@ -197,14 +201,18 @@ Power-cycle holding the switch. Audio Out 1 and 2 both carry the whole kit.
 are shifts. If a bare press triggers anything, the suppression in `FireCombo()`
 is not working.
 
-Six voices, reachable as pairs:
+**Twelve** voices, because holding A and tapping B is a different gesture from
+holding B and tapping A — same voltage, different approach:
 
 | Hold | tap A | tap B | tap C | tap D |
 |------|-------|-------|-------|-------|
-| **A** | — | kick | closed hat | clap |
-| **B** | kick | — | open hat | rim |
-| **C** | closed hat | open hat | — | snare |
-| **D** | clap | rim | snare | — |
+| **A** | — | cowbell | hi-hat (alt) | open hi-hat |
+| **B** | crash | — | kick (deep) | snare (snappy) |
+| **C** | closed hat | snare | — | kick |
+| **D** | tom 1 | syn tom 2 | syn drum 3 | — |
+
+**Check the ordering works**: hold A and tap B (cowbell), then hold B and tap A
+(crash). If those give the same sound, the shift is not being latched.
 
 The thing to test hardest: **hold A and tap B repeatedly.** You should get a
 clean run of kicks, as fast as you can tap, with no extra sounds between them.
@@ -254,7 +262,10 @@ shift should sustain its bass note while you play the kit over it.
 
 In rough priority order:
 
-1. Whether the **tap now feels immediate** — it fires on press rather than
+1. Whether all **twelve ordered voices** fire correctly and feel distinct, and
+   whether the hold-C row really does fall under the hand.
+2. Whether the **crash** rings long enough now (it should be ~1.9 s).
+3. Whether the **tap now feels immediate** — it fires on press rather than
    release, which was the main thing making the card feel unresponsive.
 2. Whether **overdubbing works** now that arming record no longer mutes.
 3. Whether the **envelopes** are now long enough, and whether the DARK/BALANCED/

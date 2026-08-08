@@ -92,6 +92,7 @@ void LevelTracker::ResetHeld()
 	current_   = kComboNone;
 	ghost_     = kComboNone;
 	ghostFrom_ = kComboNone;
+	shift_     = kComboNone;
 	// The settle plateau is left running: the CV has not moved, so re-deriving
 	// it from scratch would only add a spurious 12ms of latency to the first
 	// press after a learn.
@@ -192,6 +193,16 @@ LevelEvent __not_in_flash_func(LevelTracker::Step)(int32_t cvIn, int8_t &idx)
 		idx        = m;
 		return LevelEvent::GhostArmed;
 	}
+
+	// Latch WHICH single we came from, if we are arriving at a pair from one.
+	//
+	// This is the only place the press order survives: the voltage for A+B is
+	// the same whichever went down first, but the level we are LEAVING is the
+	// button that was already held. See Shift() in the header.
+	if (m >= kNumSingles && current_ >= 0 && current_ < kNumSingles)
+		shift_ = current_;
+	else if (m < kNumSingles)
+		shift_ = kComboNone;      // back on a bare single: no shift in play
 
 	// Everything else is a genuine press: another pair, a different pair's
 	// member, a single that was not part of the pair we left, or any move at

@@ -429,8 +429,32 @@ private:
 		}
 		else
 		{
-			drums_.Trigger(combo, KnobVal(Knob::Y));
-			if (recording_) loop_.RecordHit(combo, 100);
+			// A pair. WHICH pair is not enough — hold-A-tap-B and hold-B-tap-A
+			// close the same two switches and produce an identical voltage, but
+			// they are different gestures and get different sounds. The shift
+			// button recovers the ordering the voltage threw away, doubling the
+			// kit from six voices to twelve. See LevelTracker::Shift().
+			int8_t shift = levels_.Shift();
+			int8_t tap   = OtherMember(combo, shift);
+
+			if (shift >= 0 && tap >= 0)
+			{
+				drums_.TriggerOrdered(shift, tap, KnobVal(Knob::Y));
+				// The LOOP still stores the combination, not the ordering. That
+				// is a deliberate simplification: a recorded pattern replays
+				// through the combo-indexed kit, so it keeps its voice without
+				// the event needing a fifth byte.
+				if (recording_) loop_.RecordHit(combo, 100);
+			}
+			else
+			{
+				// No shift latched — the pair was reached without passing
+				// through one of its own buttons (from another pair, or as the
+				// first press after a calibration). Fall back to the
+				// combo-indexed kit rather than going silent.
+				drums_.Trigger(combo, KnobVal(Knob::Y));
+				if (recording_) loop_.RecordHit(combo, 100);
+			}
 		}
 
 		gateTimer_ = kGateSamples;

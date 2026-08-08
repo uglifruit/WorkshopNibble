@@ -28,7 +28,21 @@ struct DrumSpec
 	uint8_t  noiseShift;  ///< noise decay
 	uint16_t noiseMix;    ///< Q8: 0 = pure tone, 256 = pure noise
 	uint8_t  sweepRate;   ///< samples per pitch decrement; 0 = no sweep
+	uint8_t  metal;       ///< 0 = normal, 1 = ring-modulated metallic (cymbals)
 };
+
+/// How many ORDERED pairs there are: four shifts times three taps.
+///
+/// The kit is indexed by (shift, tap) rather than by combination, because
+/// A-held-then-B and B-held-then-A are different gestures even though they
+/// produce an identical voltage. See LevelTracker::Shift() for how the ordering
+/// is recovered — it doubles the kit from six voices to twelve at no cost in
+/// hardware or player effort.
+constexpr int kNumOrdered = kNumSingles * (kNumSingles - 1);   // 12
+
+/// Voice for a (shift, tap) gesture. Both are single-button indices 0..3.
+/// Returns nullptr if they are the same button, which is not a gesture.
+const DrumSpec *OrderedVoice(int8_t shift, int8_t tap);
 
 /// The kit, indexed by combo. Kick and snare sit on the bare singles A and B:
 /// the sounds you hit most often should need the fewest fingers.
@@ -58,6 +72,18 @@ constexpr int8_t kBassSemis[kNumSingles] = { 0, -2, 7, 12 };
 /// 0.83V and 2V, which is bass register on a normally-tuned oscillator.
 constexpr int kBassRoot = 12;
 
+/// Fractional headroom in the drum envelope accumulators.
+///
+/// Same trap as the KEYS envelopes, and it bit here too: `e -= (e >> shift) + 1`
+/// reaches zero thanks to the `+1`, but that `+1` DOMINATES once `e >> shift`
+/// rounds to zero, which for a 4095 peak happens around shift 12. Every longer
+/// setting decayed in the same ~85ms, so shifts 12 and 13 were identical and a
+/// "crash" was a blip.
+///
+/// Six bits of headroom puts the usable range at ~6ms to ~1.9s, which is what
+/// a cymbal needs and leaves the Y knob's +/-3 meaningful at both ends.
+constexpr int kDrumEnvFrac = 6;
+
 class DrumVoice
 {
 public:
@@ -70,6 +96,7 @@ public:
 
 private:
 	uint16_t phase_      = 0;
+	uint16_t phase2_     = 0;   ///< second accumulator, metallic voices only
 	uint16_t pitch_      = 0;
 	uint16_t pitchFloor_ = 0;
 	int32_t  env_        = 0;
@@ -79,6 +106,7 @@ private:
 	uint8_t  noiseShift_ = 10;
 	uint8_t  sweepRate_  = 0;
 	uint8_t  sweepCount_ = 0;
+	uint8_t  metal_      = 0;
 };
 
 /// How many voices can decay at once. Ten would be silly — you have four
@@ -89,6 +117,10 @@ constexpr int kMaxVoices = 6;
 class DrumKit
 {
 public:
+	/// Fire an ORDERED gesture: `shift` held, `tap` struck. This is the normal
+	/// path when playing — see OrderedVoice().
+	void TriggerOrdered(int8_t shift, int8_t tap, int32_t yKnob);
+
 	/// Fire the sound for a combo. `yKnob` (0..4095) reshapes the whole kit:
 	/// CCW lower and longer, CW higher and shorter. Applied at TRIGGER time
 	/// only, so sweeping the knob does not warp voices that are already

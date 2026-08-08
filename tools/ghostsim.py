@@ -117,6 +117,7 @@ class LevelTracker:
         self.cand_ticks = 0
         self.current    = -1
         self.ghost      = -1
+        self.shift      = -1
         self.primed     = False
 
     # -- table construction -------------------------------------------------
@@ -234,6 +235,14 @@ class LevelTracker:
             self.ghost = m
             self.current = m
             return (GHOST_ARMED, m)
+
+        # Latch which single we came FROM. The voltage for A+B is identical
+        # whichever button went down first; the level being LEFT is the one
+        # that was already held, and that is the only place the order survives.
+        if m >= NUM_SINGLES and 0 <= self.current < NUM_SINGLES:
+            self.shift = self.current
+        elif m < NUM_SINGLES:
+            self.shift = -1
 
         self.current = m
 
@@ -556,6 +565,66 @@ def test_no_directional_bias():
     check("learn: no directional capture bias (90 approaches)", worst, 0)
 
 
+def other_member(pair, one):
+    if pair < NUM_SINGLES or pair >= NUM_LEVELS:
+        return -1
+    a, b = PAIR_MEMBERS[pair - NUM_SINGLES]
+    if a == one:
+        return b
+    if b == one:
+        return a
+    return -1
+
+
+def test_ordered_pairs_distinguished():
+    """THE ORDERING. hold-A-tap-B must be told apart from hold-B-tap-A.
+
+    The two close the same switches, so the resistor network gives ONE voltage
+    for both - press order is not in the signal at all. What is available is
+    the level the CV came FROM, which is the button that was already held.
+
+    This asserts all twelve ordered gestures resolve to the right (shift, tap),
+    which is what lets DRUMS carry twelve voices instead of six.
+    """
+    lv = spaced_levels()
+    got = {}
+    for shift in range(NUM_SINGLES):
+        for tap in range(NUM_SINGLES):
+            if shift == tap:
+                continue
+            pair = None
+            for p in range(NUM_SINGLES, NUM_LEVELS):
+                if is_member_of(shift, p) and is_member_of(tap, p):
+                    pair = p
+            t = LevelTracker()
+            t.learn_from(lv)
+            hw = FourVoltages(lv)
+            prime(t, hw, shift)          # hold the shift
+            play(t, hw, [pair])          # tap the other one
+            got[(shift, tap)] = (t.shift, other_member(t.current, t.shift))
+
+    bad = [(NAMES[s] + "+" + NAMES[tp], v)
+           for (s, tp), v in got.items() if v != (s, tp)]
+    check("drums: all 12 ordered gestures resolve correctly", bad, [])
+
+    # And the specific case that motivated it.
+    check("drums: A-held+B is distinct from B-held+A",
+          got[(0, 1)] != got[(1, 0)], True)
+
+
+def test_shift_cleared_on_bare_single():
+    """Returning to a bare single must drop the shift, or a later pair reached
+    some other way would inherit a stale one."""
+    lv = spaced_levels()
+    t = LevelTracker(); t.learn_from(lv)
+    hw = FourVoltages(lv)
+    prime(t, hw, 2)              # hold C
+    play(t, hw, [5])             # tap A -> AC, shift should be C
+    check("drums: shift latched while pair held", t.shift, 2)
+    play(t, hw, [1])             # go to a bare B
+    check("drums: shift cleared on a bare single", t.shift, -1)
+
+
 def test_learn_collision_detected():
     """A squashed knob position must be REPORTED, and the learn must still
     complete. Degrading to a warning beats stalling on the combo it cannot
@@ -592,6 +661,8 @@ def main():
     print("Learn:")
     test_learn_order_is_a_permutation()
     test_no_directional_bias()
+    test_ordered_pairs_distinguished()
+    test_shift_cleared_on_bare_single()
     test_learn_roundtrip()
     test_learn_collision_detected()
     print()

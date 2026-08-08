@@ -84,6 +84,21 @@ static inline bool IsMemberOf(int8_t s, int8_t pair)
 	return (m[0] == s) || (m[1] == s);
 }
 
+/// Given a pair and one of its two buttons, return the OTHER one.
+///
+/// Used to turn (pair, shift) into (shift, tap): if you were holding C and the
+/// CV moved to the AC level, the button you just struck is A. Returns
+/// kComboNone if `pair` is not a pair or `one` is not part of it.
+static inline int8_t OtherMember(int8_t pair, int8_t one)
+{
+	if (pair < kNumSingles || pair >= kNumLevels) return kComboNone;
+	if (one < 0 || one >= kNumSingles) return kComboNone;
+	const uint8_t *m = kPairMembers[pair - kNumSingles];
+	if (m[0] == one) return static_cast<int8_t>(m[1]);
+	if (m[1] == one) return static_cast<int8_t>(m[0]);
+	return kComboNone;
+}
+
 /// Which LEDs to light for a combo. Singles light one; pairs light both of
 /// their buttons. LEDs 0..3 map directly onto the A B / C D button layout --
 /// the top 2x2 of the Computer's LEDs mirrors the Four Voltages panel, which is

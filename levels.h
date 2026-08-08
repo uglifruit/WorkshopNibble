@@ -135,6 +135,21 @@ public:
 	/// the pair you can still hear. For display, use Sounding().
 	int8_t Current() const { return current_; }
 
+	/// Which single was held when the current pair arrived, or kComboNone.
+	///
+	/// THE VOLTAGE CANNOT TELL YOU THIS. A+B and B+A close the same two
+	/// switches, so the resistor network produces one identical level for both —
+	/// press order is simply not in the signal.
+	///
+	/// What IS available is where the CV came FROM. Holding A and tapping B
+	/// arrives at the AB level from A; holding B and tapping A arrives at the
+	/// same level from B. Latching the previous single at the moment the pair
+	/// triggers therefore recovers the ordering the voltage threw away, and
+	/// turns six combinations into twelve distinguishable gestures.
+	///
+	/// Valid only while a pair is current. Reset by ResetHeld().
+	int8_t Shift() const { return shift_; }
+
 	/// The combo that is actually sounding.
 	///
 	/// Differs from Current() exactly while a ghost is armed: the CV has fallen
@@ -181,6 +196,8 @@ private:
 	/// The pair the ghost was released FROM — what is still sounding. Kept only
 	/// so the display can show it; the detection logic never reads it.
 	int8_t  ghostFrom_ = kComboNone;
+	/// The single the CV was sitting on when the current pair arrived.
+	int8_t  shift_     = kComboNone;
 
 	/// At power-on the Four Voltages output already sits at whatever was last
 	/// pressed before power-off. Swallow exactly one settle so the card does

@@ -14,32 +14,73 @@ namespace nib {
 // the two sounds a pattern is mostly made of need one finger each; the toms sit
 // on pairs sharing a finger, so hold-A-and-tap gives a tom run.
 
-const DrumSpec kKit[kNumLevels] = {
-	// pitch0 floor  decay noise  mix  sweep
-	//
-	// The four SINGLE slots are shifts and never sound (see FireCombo in
-	// main.cpp), so they are only reachable from a recorded loop. They are kept
-	// as spare voices rather than deleted — the array is indexed by combo and
-	// the looper can still fire them.
-	{  300,   90,     11,    8,    20,   1 },   // A  (silent) low tom
-	{  420,  140,     11,    8,    20,   1 },   // B  (silent) mid tom
-	{  560,  200,     10,    8,    20,   1 },   // C  (silent) high tom
-	{ 1100, 1100,      7,    0,     0,   0 },   // D  (silent) cowbell
+// The TWELVE ordered voices, indexed [shift][tap].
+//
+// Diagonal entries (shift == tap) are never reached — you cannot hold a button
+// and tap the same one — and are left as zeroes.
+//
+// The layout is chosen for the HAND, not for tidiness. Holding C with a right
+// thumb leaves A, B and D under the fingers, so that shift carries the three
+// sounds a beat is actually made of: closed hat, snare, kick. Holding D gives
+// the tom/syn-drum row for fills. A and B carry the colour: cowbell, hats, and
+// the crash.
+const DrumSpec kOrdered[kNumSingles][kNumSingles] = {
+	// ---- HOLD A ----
+	{
+		{},                                          // A+A  (not a gesture)
+		{ 1100, 1100,  7,  0,    0, 0, 0 },          // A+B  cowbell
+		{ 1300, 1300,  5,  5,  256, 0, 1 },          // A+C  hi-hat, metallic alt
+		{ 1300, 1300, 11, 11,  256, 0, 1 },          // A+D  open hi-hat
+	},
+	// ---- HOLD B ----
+	{
+		{ 1700, 1700, 15, 15,  256, 0, 1 },          // B+A  CRASH (long, metal)
+		{},                                          // B+B
+		{  180,    4, 12,  0,    0, 3, 0 },          // B+C  kick, deep alt
+		{  330,   30,  8, 10,  200, 1, 0 },          // B+D  snare, snappy alt
+	},
+	// ---- HOLD C ----  the workhorse row, under a right hand
+	{
+		{  900,  900,  6,  6,  256, 0, 0 },          // C+A  closed hat
+		{  400,   24,  9,  7,  140, 1, 0 },          // C+B  snare
+		{},                                          // C+C  (not a gesture)
+		{  220,    4, 11,  0,    0, 2, 0 },          // C+D  kick
+	},
+	// ---- HOLD D ----  toms and syn drums, for fills
+	{
+		{  600,   60,  9,  0,    0, 1, 0 },          // D+A  "pew" tom 1
+		{  420,  140, 11,  8,   20, 1, 0 },          // D+B  syn tom 2
+		{  520,  110, 10,  6,   40, 1, 0 },          // D+C  syn drum 3
+		{},                                          // D+D  (not a gesture)
+	},
+};
 
-	// THE PLAYABLE KIT. Only these six can be reached with the fingers, so
-	// between them they have to be a usable drum kit rather than a box of
-	// extras. An earlier arrangement put kick, snare and both hats on the
-	// singles and left the pairs holding a rim, three toms, a clap and a
-	// cowbell — six sounds you cannot build a beat out of.
-	//
-	// Laid out so the two most-used voices are the two easiest shapes. AB is
-	// the top row and CD the bottom row: one hand, no reaching.
-	{  220,    4,     12,    0,     0,   2 },   // AB kick        (top row)
-	{  900,  900,      6,    6,   256,   0 },   // AC closed hat  (left column)
-	{  500,  500,      8,    8,   256,   0 },   // AD clap        (diagonal)
-	{  900,  900,     10,   10,   256,   0 },   // BC open hat    (anti-diagonal)
-	{  700,  700,      5,    5,    40,   0 },   // BD rim         (right column)
-	{  400,   24,      9,    7,   140,   1 },   // CD snare       (bottom row)
+// Both indices are plain button numbers 0..3, so this is a direct lookup — the
+// diagonal entries are the unreachable "hold and tap the same button" slots and
+// are never read.
+const DrumSpec *OrderedVoice(int8_t shift, int8_t tap)
+{
+	if (shift < 0 || shift >= kNumSingles) return nullptr;
+	if (tap   < 0 || tap   >= kNumSingles) return nullptr;
+	if (shift == tap) return nullptr;
+	return &kOrdered[shift][tap];
+}
+
+// The old combination-indexed kit, still used by the LOOPER: recorded events
+// store a combo, and a bare single fired from a loop should make some sound
+// rather than none.
+const DrumSpec kKit[kNumLevels] = {
+	// pitch0 floor  decay noise  mix  sweep metal
+	{  300,   90,     11,    8,    20,   1,   0 },   // A  low tom
+	{  420,  140,     11,    8,    20,   1,   0 },   // B  mid tom
+	{  560,  200,     10,    8,    20,   1,   0 },   // C  high tom
+	{ 1100, 1100,      7,    0,     0,   0,   0 },   // D  cowbell
+	{  220,    4,     12,    0,     0,   2,   0 },   // AB kick
+	{  900,  900,      6,    6,   256,   0,   0 },   // AC closed hat
+	{  500,  500,      8,    8,   256,   0,   0 },   // AD clap
+	{  900,  900,     10,   10,   256,   0,   0 },   // BC open hat
+	{  700,  700,      5,    5,    40,   0,   0 },   // BD rim
+	{  400,   24,      9,    7,   140,   1,   0 },   // CD snare
 };
 
 namespace {
@@ -85,11 +126,13 @@ void DrumVoice::Trigger(const DrumSpec &spec, int32_t pitchScaleQ16, int32_t dec
 	if (pf > 4095) pf = 4095;
 
 	phase_      = 0;
+	phase2_     = 0;
 	pitch_      = static_cast<uint16_t>(p0);
 	pitchFloor_ = static_cast<uint16_t>(pf);
 	noiseMix_   = spec.noiseMix;
 	sweepRate_  = spec.sweepRate;
 	sweepCount_ = 0;
+	metal_      = spec.metal;
 
 	// decayAdj shifts the whole kit shorter or longer. Clamped so the extremes
 	// stay musical rather than becoming a click or a drone.
@@ -102,8 +145,8 @@ void DrumVoice::Trigger(const DrumSpec &spec, int32_t pitchScaleQ16, int32_t dec
 	decayShift_ = static_cast<uint8_t>(ds);
 	noiseShift_ = static_cast<uint8_t>(ns);
 
-	env_      = 4095;
-	noiseEnv_ = (spec.noiseMix > 0) ? 4095 : 0;
+	env_      = 4095 << kDrumEnvFrac;
+	noiseEnv_ = (spec.noiseMix > 0) ? (4095 << kDrumEnvFrac) : 0;
 }
 
 int32_t __not_in_flash_func(DrumVoice::Step)(uint32_t &rng)
@@ -131,8 +174,24 @@ int32_t __not_in_flash_func(DrumVoice::Step)(uint32_t &rng)
 
 	// --- noise ---
 	int32_t noise = 0;
-	if (noiseEnv_ > 8)
+	if (noiseEnv_ > (8 << kDrumEnvFrac))
 		noise = (static_cast<int32_t>((xorshift32(rng) >> 24) & 255) - 128) << 4;
+
+	// METALLIC voices ring-modulate the noise against a second, inharmonically
+	// related square. Plain filtered noise reads as "shh"; cymbals need the
+	// clangorous, slightly pitched quality that comes from beating partials,
+	// and a ring mod is the cheapest honest way to get it — two phase
+	// accumulators and a sign flip, no extra filters.
+	//
+	// The 1.47x ratio is deliberately not a simple fraction: an integer ratio
+	// would lock the two into a harmonic relationship and sound like a tone.
+	if (metal_)
+	{
+		phase2_ = static_cast<uint16_t>((phase2_ + ((pitch_ * 3) / 2 + 37)) & 4095);
+		if (phase2_ & 2048) noise = -noise;
+		// Square the body too, so the metal voices are all edge and no thud.
+		osc = (phase_ & 2048) ? 2047 : -2047;
+	}
 
 	// --- decays ---
 	if (env_ > 0)
@@ -147,14 +206,27 @@ int32_t __not_in_flash_func(DrumVoice::Step)(uint32_t &rng)
 	}
 
 	// --- mix body and noise by the voice's character ---
-	int32_t body = (osc   * env_)      >> 12;
-	int32_t nz   = (noise * noiseEnv_) >> 12;
+	int32_t body = (osc   * (env_      >> kDrumEnvFrac)) >> 12;
+	int32_t nz   = (noise * (noiseEnv_ >> kDrumEnvFrac)) >> 12;
 	return ((body * (256 - noiseMix_)) + (nz * noiseMix_)) >> 8;
 }
 
 // ---------------------------------------------------------------------------
 // The kit
 // ---------------------------------------------------------------------------
+
+void DrumKit::TriggerOrdered(int8_t shift, int8_t tap, int32_t yKnob)
+{
+	const DrumSpec *spec = OrderedVoice(shift, tap);
+	if (!spec) return;
+
+	int32_t y = knob_to_q16(yKnob);
+	int32_t pitchScale = 32768 + y;
+	int32_t decayAdj   = 3 - ((yKnob * 6) >> 12);
+
+	voice_[next_].Trigger(*spec, pitchScale, decayAdj);
+	next_ = static_cast<uint8_t>((next_ + 1) % kMaxVoices);
+}
 
 void DrumKit::Trigger(int8_t combo, int32_t yKnob)
 {

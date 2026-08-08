@@ -3,7 +3,7 @@ Name: NIBBLE
 short-description: Turns the Four Voltages module into a ten-note keyboard, or a shift-and-tap drum looper
 Language: C++ (ComputerCard)
 Creator: Andy Jenkinson (uglifruit)
-Version: "1.3.0"
+Version: "1.4.0"
 Status: Released
 License: CC-BY-4.0
 repository: https://github.com/uglifruit/WorkshopNibble
@@ -17,7 +17,7 @@ contact:
 
 uf2:
   - path: UF2/nibble.uf2
-    name: NIBBLE 1.3.0
+    name: NIBBLE 1.4.0
 
 tags:
   - keyboard
@@ -62,10 +62,19 @@ summary: |
   shift rather than a sound and only pairs trigger, which is what lets you hold
   one button and tap the others to repeat a hit as fast as you like - percussion
   is mostly repeated hits on the same drum, and a keyboard reading of the buttons
-  cannot do that. Six voices under the fingers: kick on the top row, snare on the
-  bottom, hats on a column and a diagonal. A four-bar event looper whose overdub
-  is lossless because it records events rather than audio, clockable from Pulse
-  In 1, and a DJ filter whose movements can be recorded into the loop.
+  cannot do that.<br><br>
+
+  TWELVE voices, not six, because holding A and tapping B is a different gesture
+  from holding B and tapping A. Those close the same switches and give an
+  identical voltage - press order is not in the signal - but the level the
+  voltage came FROM is the button that was already down, and latching that
+  recovers the ordering for nothing. Hold C and your right hand has closed hat,
+  snare and kick under three fingers; hold D for the tom row; A and B carry the
+  colour, including the crash.<br><br>
+
+  A four-bar event looper whose overdub is lossless because it records events
+  rather than audio, clockable from Pulse In 1, a DJ filter whose movements can
+  be recorded into the loop, and a click track on Pulse Out 2.
 
 panel:
   inputs:
