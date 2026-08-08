@@ -129,6 +129,55 @@ constexpr int32_t kMinLearnSpan = 400;
 /// How long the failure is announced before dropping back to play.
 constexpr int32_t kFailFlashTicks = 3 * kCtrlRate / 2;   // 1.5s
 
+/// One automated knob: recorded playback that the physical knob can reclaim.
+///
+/// Three things have to be right, and each was a bug before it was a comment:
+///
+///  1. Playback must keep applying WHILE RECORDING. Gating it on !recording
+///     meant arming record snapped the filter to wherever the knob physically
+///     sat, silencing the loop exactly when you wanted to play along.
+///  2. The reference is latched ONCE when playback takes over, never updated
+///     while it holds. Re-taking it on every threshold crossing let ADC dither
+///     ratchet the knob "across" the threshold untouched.
+///  3. The comparison uses a SMOOTHED reading. A latched reference alone is not
+///     enough when the noise is comparable to the threshold — modelling showed
+///     a still knob handing back thousands of times a minute. Smoothing gives
+///     zero false releases to +/-100 counts while a real move still lands in
+///     about a millisecond.
+struct KnobPickup
+{
+	int32_t override_ = -1;      ///< >=0 when recorded automation owns the knob
+	int32_t smooth_   = 0;
+	int32_t ref_      = 0;
+	bool    armed_    = false;
+
+	/// Value to use this tick: the recorded one if it owns the knob, else live.
+	int32_t Value(int32_t live) const
+	{
+		return (override_ >= 0) ? override_ : live;
+	}
+
+	void Playback(int32_t v) { override_ = v; }
+
+	void Release()
+	{
+		override_ = -1;
+		armed_    = false;
+	}
+
+	/// Control-rate update. Hands back to the player on a genuine move.
+	void Update(int32_t live)
+	{
+		smooth_ = slew_exact(smooth_, live, 4);
+		if (override_ < 0) { armed_ = false; return; }
+
+		if (!armed_) { armed_ = true; ref_ = smooth_; }
+
+		int32_t d = smooth_ - ref_;
+		if (d > kKnobMoveThresh || d < -kKnobMoveThresh) Release();
+	}
+};
+
 } // namespace
 
 // ===========================================================================
@@ -349,7 +398,7 @@ private:
 			// re-fire. (See FireCombo.)
 			if (lastVoice_ >= 0)
 			{
-				drums_.TriggerVoice(lastVoice_, KnobVal(Knob::Y));
+				drums_.TriggerVoice(lastVoice_, toneKnob_);
 				if (recording_) loop_.RecordHit(lastVoice_, 100);
 				gateTimer_ = kGateSamples;
 				int8_t cur = levels_.Current();
@@ -455,7 +504,7 @@ private:
 			}
 			if (voice < 0) return;
 
-			drums_.TriggerVoice(voice, KnobVal(Knob::Y));
+			drums_.TriggerVoice(voice, toneKnob_);
 			lastVoice_ = voice;
 
 			// The loop records the VOICE, not the gesture. A pattern is a list
@@ -496,15 +545,19 @@ private:
 	void __not_in_flash_func(DrumsControl)()
 	{
 		Switch sw = SwitchVal();
-		// Arming or releasing record re-seeds the filter reference, so the first
+		// Arming or releasing record re-seeds the knob references, so the first
 		// sample after the transition cannot be mistaken for a knob move.
 		bool nowRecording = (sw == Switch::Up);
-		if (nowRecording != recording_) loop_.ArmFilter();
+		if (nowRecording != recording_) loop_.ArmKnobs();
 		recording_ = nowRecording;
 
 		loop_.SetTempo(KnobVal(Knob::X));
-		djFilter_.SetKnob(filterOverride_ >= 0 ? filterOverride_
-		                                       : KnobVal(Knob::Main));
+
+		const int32_t mainLive = KnobVal(Knob::Main);
+		const int32_t toneLive = KnobVal(Knob::Y);
+
+		djFilter_.SetKnob(filterPickup_.Value(mainLive));
+		toneKnob_ = tonePickup_.Value(toneLive);
 
 		// Erasing the loop is done by entering calibration — see EnterLearn().
 		// The old gesture here was "hold the switch UP with no hits played",
@@ -512,7 +565,7 @@ private:
 		// long stretches while playing, so "no hits played" is true far more
 		// often than the player means it to be.
 
-		if (recording_) loop_.RecordFilter(KnobVal(Knob::Main));
+		if (recording_) loop_.RecordKnobs(mainLive, toneLive);
 
 		if (loop_.Advance())
 		{
@@ -525,81 +578,32 @@ private:
 			// control steps — a click that is on more than it is off.
 			if (loop_.BeatEdge()) clickTimer_ = kClickSamples;
 
-			int8_t  combo[Looper::kMaxFirePerTick];
+			int8_t  voices[Looper::kMaxFirePerTick];
 			uint8_t vel[Looper::kMaxFirePerTick];
-			int32_t filt = 0;
-			bool    haveFilt = false;
+			int32_t knob[kNumLanes] = {};
+			bool    haveKnob[kNumLanes] = {};
 
-			int n = loop_.Fire(combo, vel, &filt, &haveFilt);
+			int n = loop_.Fire(voices, vel, knob, haveKnob);
+
+			// Apply automation BEFORE firing the hits, so a recorded tone change
+			// lands on the hits recorded alongside it rather than one tick late.
+			if (haveKnob[kLaneFilter]) filterPickup_.Playback(knob[kLaneFilter]);
+			if (haveKnob[kLaneTone])
+			{
+				tonePickup_.Playback(knob[kLaneTone]);
+				toneKnob_ = knob[kLaneTone];
+			}
+
 			for (int i = 0; i < n; i++)
 			{
-				drums_.TriggerVoice(combo[i], KnobVal(Knob::Y));
+				drums_.TriggerVoice(voices[i], toneKnob_);
 				gateTimer_ = kGateSamples;
-				ledFlash_[combo[i] & 3] = kCtrlRate / 8;
+				ledFlash_[voices[i] & 3] = kCtrlRate / 8;
 			}
-			// Recorded filter automation takes over the knob until the player
-			// moves it again — otherwise the live knob position would fight
-			// the playback on every tick.
-			//
-			// This used to be gated on !recording_, which MUTED THE LOOP the
-			// moment you armed record: playback stopped applying, the filter
-			// snapped to wherever the knob physically sat, and if that was a
-			// closed low-pass everything went quiet. Overdubbing against
-			// silence is close to impossible.
-			//
-			// Playback applies while recording too now. The knob still wins the
-			// instant it MOVES (see below), which is the only thing the gate
-			// was really protecting, and it does that job without the loop
-			// having to disappear first.
-			if (haveFilt) filterOverride_ = filt;
 		}
 
-		// --- Knob PICKUP -------------------------------------------------
-		//
-		// The knob reclaims the filter from recorded automation, but only on a
-		// real move. Two things make that harder than it looks:
-		//
-		// 1. The reference has to be taken when playback TAKES OVER, and then
-		//    left alone. Updating it every time the knob drifts past the
-		//    threshold (which the first version did) lets ADC dither ratchet:
-		//    each small step moves the reference, so the knob eventually
-		//    "travels" a long way without a finger ever touching it, and
-		//    playback is yanked away mid-loop.
-		//
-		// 2. The threshold has to be wider than the dither but narrower than a
-		//    deliberate nudge. kKnobMoveThresh (64 of 4095) is already tuned for
-		//    exactly that job elsewhere on the card, so it is reused here rather
-		//    than inventing a second number.
-		// 3. The comparison is made against a SMOOTHED reading, not the raw one.
-		//    A latched reference alone is not enough: if the ADC's own noise is
-		//    comparable to the threshold, single samples still cross it and hand
-		//    control back at random. Modelling this showed a still knob with
-		//    +/-70 counts of noise releasing thousands of times a minute even
-		//    with the reference held fixed. A one-pole filter drops the noise
-		//    far below the threshold while a real move still arrives within a
-		//    few milliseconds.
-		mainSmooth_ = slew_exact(mainSmooth_, KnobVal(Knob::Main), 4);
-
-		if (filterOverride_ >= 0)
-		{
-			// Playback owns the filter. Latch the position ONCE, on the
-			// transition, and compare against that fixed point from then on.
-			if (!pickupArmed_)
-			{
-				pickupArmed_ = true;
-				pickupRef_   = mainSmooth_;
-			}
-			int32_t dm = mainSmooth_ - pickupRef_;
-			if (dm > kKnobMoveThresh || dm < -kKnobMoveThresh)
-			{
-				filterOverride_ = -1;    // the player moved it: hand back
-				pickupArmed_    = false;
-			}
-		}
-		else
-		{
-			pickupArmed_ = false;
-		}
+		filterPickup_.Update(mainLive);
+		tonePickup_.Update(toneLive);
 	}
 
 	// =======================================================================
@@ -625,7 +629,8 @@ private:
 		// is guaranteed to be meaningless: the levels are about to change, so
 		// the combos the pattern refers to may not even exist afterwards.
 		loop_.Clear();
-		filterOverride_ = -1;
+		filterPickup_.Release();
+		tonePickup_.Release();
 		// Entering on a HOLD means the release of that hold is still to come.
 		// holdFired_ is already true here, which swallows it — without that,
 		// the release would immediately read as the capture tap for step 0.
@@ -1028,12 +1033,10 @@ private:
 	bool     glide_     = false;
 
 	// drums
-	bool    recording_      = false;
-	int32_t filterOverride_ = -1;
-	// Knob pickup for the DJ filter — see DrumsControl().
-	int32_t mainSmooth_     = 0;
-	bool    pickupArmed_    = false;
-	int32_t pickupRef_      = 0;
+	bool       recording_ = false;
+	KnobPickup filterPickup_;   ///< Main knob: the DJ filter
+	KnobPickup tonePickup_;     ///< Y knob: kit character
+	int32_t    toneKnob_  = 2048;   ///< the Y value voices are struck with
 
 	// outputs
 	int32_t gateTimer_    = 0;

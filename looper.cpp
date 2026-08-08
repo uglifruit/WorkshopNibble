@@ -22,7 +22,7 @@ namespace {
 /// kLoopTicks, which is tick 0 of the next pass, not a tick off the end.
 uint16_t Looper::FireTick(const LoopEvent &ev)
 {
-	if (ev.what == kFilterEvent) return ev.tick;
+	if (IsKnobEvent(ev.what)) return ev.tick;
 	uint16_t q = static_cast<uint16_t>(((ev.tick + kQuantTicks / 2) / kQuantTicks)
 	                                   * kQuantTicks);
 	return static_cast<uint16_t>(q % kLoopTicks);
@@ -117,7 +117,7 @@ bool Looper::Advance()
 		if (playHead_ == 0) cursor_ = 0;
 	}
 
-	if (filterCountdown_ > 0) filterCountdown_--;
+	if (knobCountdown_ > 0) knobCountdown_--;
 	return true;
 }
 
@@ -151,7 +151,7 @@ void Looper::Insert(const LoopEvent &ev)
 	}
 	events_[i] = ev;
 	count_++;
-	if (ev.what == kFilterEvent) filterCount_++;
+	if (IsKnobEvent(ev.what)) knobCount_++;
 
 	// The new event may sit before the cursor, which would make the cursor
 	// point at the wrong place for the rest of this pass. Nudging it keeps the
@@ -170,10 +170,10 @@ void Looper::RecordHit(int8_t voice, uint8_t velocity)
 	// always matters more than a knob position from three passes ago — and
 	// silently dropping it is what made the looper feel like it was
 	// overwriting things.
-	if (count_ >= kMaxEvents && filterCount_ > 0)
+	if (count_ >= kMaxEvents && knobCount_ > 0)
 	{
 		for (int i = 0; i < count_; i++)
-			if (events_[i].what == kFilterEvent) { Remove(i); break; }
+			if (IsKnobEvent(events_[i].what)) { Remove(i); break; }
 	}
 
 	LoopEvent ev;
@@ -183,53 +183,61 @@ void Looper::RecordHit(int8_t voice, uint8_t velocity)
 	Insert(ev);
 }
 
-void Looper::RecordFilter(int32_t knob)
+void Looper::RecordKnobs(int32_t filterKnob, int32_t toneKnob)
 {
-	if (filterCountdown_ > 0) return;
-	filterCountdown_ = kFilterSampleTicks;
+	// One countdown for BOTH lanes, checked once and reset once. Letting each
+	// lane test and consume it separately would mean whichever asked first ate
+	// the whole interval and the other never recorded at all.
+	if (knobCountdown_ > 0) return;
+	knobCountdown_ = kKnobSampleTicks;
+
+	RecordLane(kLaneFilter, filterKnob);
+	RecordLane(kLaneTone,   toneKnob);
+}
+
+void Looper::RecordLane(uint8_t lane, int32_t knob)
+{
+	if (lane >= kNumLanes) return;
 
 	// Arming record must not, by itself, write anything.
 	//
-	// lastFilter_ starts unset, so the FIRST call after switching to record used
+	// lastKnob_ starts unset, so the FIRST call after switching to record used
 	// to look like a move and immediately stamp the knob's physical position
-	// into the loop. If the knob happened to be parked at a closed low-pass,
-	// that silenced the pattern the instant you armed — which is precisely what
-	// arming record must never do, because it is when you are trying to play
-	// along.
-	//
-	// Seeding the reference instead means automation is only written once the
-	// knob genuinely MOVES while recording. Reach for it and it records; leave
-	// it alone and the existing sweep is untouched.
-	if (lastFilter_ < 0)
+	// into the loop. If the filter knob happened to be parked at a closed
+	// low-pass, that silenced the pattern the instant you armed — which is
+	// precisely what arming record must never do.
+	if (lastKnob_[lane] < 0)
 	{
-		lastFilter_ = knob;
+		lastKnob_[lane] = knob;
 		return;
 	}
 
-	if ((knob - lastFilter_ < kKnobMoveThresh)
-	 && (lastFilter_ - knob < kKnobMoveThresh))
+	if ((knob - lastKnob_[lane] < kKnobMoveThresh)
+	 && (lastKnob_[lane] - knob < kKnobMoveThresh))
 		return;
-	lastFilter_ = knob;
+	lastKnob_[lane] = knob;
+
+	const uint8_t what = static_cast<uint8_t>(kKnobEvent | lane);
 
 	// Automation REPLACES itself rather than accumulating. A knob pass on top of
 	// an earlier one should read as "I redid that sweep", not as two sweeps
 	// fighting on the same tick — and without this, every pass adds another
-	// ~96 events until the buffer is full and drum hits start being dropped.
-	//
-	// Drop any existing automation already sitting on this tick first.
+	// batch of events until the buffer is full and drum hits start being
+	// dropped. Only THIS lane's events are dropped, so automating Y does not
+	// erase a filter sweep sitting on the same tick.
 	for (int i = 0; i < count_; )
 	{
-		if (events_[i].what == kFilterEvent && FireTick(events_[i]) == playHead_)
+		if (events_[i].what == what && FireTick(events_[i]) == playHead_)
 			Remove(i);
 		else
 			i++;
 	}
 
-	if (filterCount_ >= kMaxFilterEvents) return;
+	if (knobCount_ >= kMaxKnobEvents) return;
 
 	LoopEvent ev;
 	ev.tick  = playHead_;
-	ev.what  = kFilterEvent;
+	ev.what  = what;
 	ev.value = static_cast<uint8_t>(knob >> 4);   // 0..4095 -> 0..255
 	Insert(ev);
 }
@@ -238,7 +246,7 @@ void Looper::RecordFilter(int32_t knob)
 void Looper::Remove(int i)
 {
 	if (i < 0 || i >= count_) return;
-	if (events_[i].what == kFilterEvent && filterCount_ > 0) filterCount_--;
+	if (IsKnobEvent(events_[i].what) && knobCount_ > 0) knobCount_--;
 
 	for (int j = i; j + 1 < count_; j++) events_[j] = events_[j + 1];
 	count_--;
@@ -254,10 +262,10 @@ void Looper::Remove(int i)
 // ---------------------------------------------------------------------------
 
 int Looper::Fire(int8_t *outCombo, uint8_t *outVel,
-                 int32_t *outFilter, bool *haveFilter)
+                 int32_t *outKnob, bool *haveKnob)
 {
 	int n = 0;
-	*haveFilter = false;
+	for (int i = 0; i < kNumLanes; i++) haveKnob[i] = false;
 	if (count_ == 0) return 0;
 
 	// Walk forward over every event due on EXACTLY this tick. FireTick() is the
@@ -278,10 +286,11 @@ int Looper::Fire(int8_t *outCombo, uint8_t *outVel,
 		const LoopEvent &ev = events_[cursor_];
 		if (FireTick(ev) != playHead_) break;
 
-		if (ev.what == kFilterEvent)
+		if (IsKnobEvent(ev.what))
 		{
-			*outFilter  = static_cast<int32_t>(ev.value) << 4;
-			*haveFilter = true;
+			uint8_t lane = LaneOf(ev.what);
+			outKnob[lane]  = static_cast<int32_t>(ev.value) << 4;
+			haveKnob[lane] = true;
 		}
 		else if (n < kMaxFirePerTick)
 		{
@@ -298,7 +307,7 @@ void Looper::Clear()
 {
 	count_      = 0;
 	cursor_     = 0;
-	lastFilter_ = -9999;
+	for (int i = 0; i < kNumLanes; i++) lastKnob_[i] = -9999;
 	// playHead_ and phase_ are left alone: clearing the pattern should not also
 	// jump the transport, or an erase mid-performance lurches the timing.
 }

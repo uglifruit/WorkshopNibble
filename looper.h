@@ -26,12 +26,19 @@ namespace nib {
 struct LoopEvent
 {
 	uint16_t tick;    ///< 0..kLoopTicks-1, RAW (unquantised)
-	uint8_t  what;    ///< 0..kNumVoices-1 = a drum VOICE, kFilterEvent = filter
+	uint8_t  what;    ///< 0..kNumVoices-1 = a drum VOICE; kKnobEvent|lane = knob
 	uint8_t  value;   ///< drum: velocity. filter: knob >> 4.
 };
 
-/// Marks an automation event rather than a drum hit.
-constexpr uint8_t kFilterEvent = 0x80;
+/// Marks a knob-automation event rather than a drum hit. The low bits carry
+/// which knob, so both lanes share one code path.
+constexpr uint8_t kKnobEvent = 0x80;
+
+/// The automated knobs. Main is the DJ filter; Y is the kit character.
+enum KnobLane : uint8_t { kLaneFilter = 0, kLaneTone = 1, kNumLanes = 2 };
+
+static inline bool IsKnobEvent(uint8_t what) { return (what & kKnobEvent) != 0; }
+static inline uint8_t LaneOf(uint8_t what)   { return what & (kNumLanes - 1); }
 
 /// Four bars of 4/4 at 48 ticks per beat. 48 divides by 2, 3, 4, 6, 8, 12 and
 /// 16, so every useful subdivision (and triplets) lands on an exact tick.
@@ -54,20 +61,20 @@ constexpr int kMaxEvents = 512;
 /// everything and NEW DRUM HITS STOP BEING RECORDED. From the player's side
 /// that feels exactly like the looper overwriting what they just played.
 ///
-/// Automation also REPLACES rather than accumulates (see RecordFilter), so this
+/// Automation also REPLACES rather than accumulates (see RecordKnob), so this
 /// ceiling is generous: one pass of dense knob movement fits inside it with
 /// room to spare, and hits always keep at least kMaxEvents - kMaxFilterEvents
 /// slots to themselves.
-constexpr int kMaxFilterEvents = 128;
+constexpr int kMaxKnobEvents = 192;
 
 /// Tempo range. 40-240 BPM across the X knob.
 constexpr int32_t kBpmMin = 40;
 constexpr int32_t kBpmMax = 240;
 
-/// How often the filter knob is sampled while recording, in ticks. Caps
+/// How often each automated knob is sampled while recording, in ticks. Caps
 /// automation density at ~6 events/beat worst case and usually near zero,
 /// since an event is only emitted when the knob has actually moved.
-constexpr int kFilterSampleTicks = 8;
+constexpr int kKnobSampleTicks = 8;
 
 class Looper
 {
@@ -114,18 +121,30 @@ public:
 	/// The first call after ArmFilter() only seeds the reference — arming record
 	/// must never itself write automation, or the knob's resting position gets
 	/// stamped into the loop and can silence it.
-	void RecordFilter(int32_t knob);
+	/// Record both automated knobs. Called once per control tick while
+	/// recording; internally rate-limited to one sample every kKnobSampleTicks.
+	///
+	/// Both lanes are taken together rather than each managing its own timer,
+	/// because a shared countdown consumed by whichever lane asked first would
+	/// starve the other completely.
+	void RecordKnobs(int32_t filterKnob, int32_t toneKnob);
 
 	/// Called when record is armed or released. Drops the knob reference so the
-	/// next RecordFilter() re-seeds instead of comparing against a stale value
+	/// next RecordKnob() re-seeds instead of comparing against a stale value
 	/// from a previous pass.
-	void ArmFilter() { lastFilter_ = -9999; }
+	void ArmKnobs()
+	{
+		for (int i = 0; i < kNumLanes; i++) lastKnob_[i] = -9999;
+	}
 
 	/// Fire every event scheduled for the current tick.
 	/// `outCombo` receives drum hits; `outFilter` receives automation.
 	/// Returns the number of drum hits written (0..kMaxFirePerTick).
 	static constexpr int kMaxFirePerTick = 8;
-	int Fire(int8_t *outCombo, uint8_t *outVel, int32_t *outFilter, bool *haveFilter);
+	/// `outKnob[lane]` receives any automation that fired this tick, with the
+	/// matching `haveKnob[lane]` set.
+	int Fire(int8_t *outCombo, uint8_t *outVel,
+	         int32_t *outKnob, bool *haveKnob);
 
 	void Clear();
 
@@ -154,6 +173,7 @@ public:
 private:
 	void Insert(const LoopEvent &ev);
 	void Remove(int i);
+	void RecordLane(uint8_t lane, int32_t knob);
 
 	/// The tick at which an event actually sounds, after quantisation. The
 	/// event array is sorted by THIS, not by the raw stored tick — see the
@@ -162,7 +182,7 @@ private:
 
 	LoopEvent events_[kMaxEvents] = {};
 	uint16_t  count_       = 0;
-	uint16_t  filterCount_ = 0;   ///< how many of count_ are automation
+	uint16_t  knobCount_ = 0;     ///< how many of count_ are automation
 	uint16_t  playHead_ = 0;
 	uint16_t  cursor_   = 0;    ///< index of the next event at or after playHead_
 
@@ -178,8 +198,8 @@ private:
 	int32_t  clockInterval_ = 0;   ///< control ticks between the last two edges
 	int32_t  sinceClock_    = 0;
 
-	int32_t  lastFilter_     = -9999;
-	int32_t  filterCountdown_ = 0;
+	int32_t  lastKnob_[kNumLanes] = { -9999, -9999 };
+	int32_t  knobCountdown_ = 0;
 };
 
 } // namespace nib

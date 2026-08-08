@@ -136,6 +136,14 @@ public:
 
 	bool Active() const { return env_ > 0 || noiseEnv_ > 0; }
 
+	/// How much this voice is still contributing, for the allocator to compare.
+	/// Scaled by level_ so a quiet voice is correctly seen as a cheap steal.
+	int32_t Energy() const
+	{
+		int32_t e = (env_ > noiseEnv_) ? env_ : noiseEnv_;
+		return (e >> 8) * static_cast<int32_t>(level_);
+	}
+
 private:
 	uint32_t phase_      = 0;
 	uint32_t phase2_     = 0;   ///< second accumulator, metallic voices only
@@ -152,10 +160,23 @@ private:
 	uint16_t level_      = kLevelFull;
 };
 
-/// How many voices can decay at once. Ten would be silly — you have four
-/// fingers — but the ring must never steal a voice that is still audible, so a
-/// little headroom over the realistic maximum is the cheap and correct answer.
-constexpr int kMaxVoices = 6;
+/// How many voices can decay at once.
+///
+/// Sixteen, not six. The old figure was reasoned from "you have four fingers",
+/// which is the wrong question once a LOOP is playing — a four-bar pattern with
+/// several overdubbed passes fires far more hits than a pair of hands ever
+/// could, and they overlap.
+///
+/// The arithmetic that matters: at 120bpm a sixteenth is 125ms, and the crash
+/// stays audible for 874ms. That is seven sixteenths — so a single crash needs
+/// seven slots to itself if a hi-hat pattern is running underneath. With six
+/// slots total, any six subsequent hits silenced it, which is exactly the
+/// "recording seems to silence previously recorded stuff" that kept being
+/// reported. More passes, more hits, more stealing.
+///
+/// Sixteen voices cost 16 * ~40 bytes of state and one extra add per sample
+/// each. Both are noise against this card's budget.
+constexpr int kMaxVoices = 16;
 
 class DrumKit
 {
@@ -174,9 +195,10 @@ public:
 	int32_t Step();
 
 private:
+	uint8_t PickSlot();
+
 	DrumVoice voice_[kMaxVoices];
-	uint8_t   next_ = 0;
-	uint32_t  rng_  = 0x1234567u;
+	uint32_t  rng_ = 0x1234567u;
 };
 
 // ---------------------------------------------------------------------------

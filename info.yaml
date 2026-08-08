@@ -3,7 +3,7 @@ Name: NIBBLE
 short-description: Turns the Four Voltages module into a ten-note keyboard, or a shift-and-tap drum looper
 Language: C++ (ComputerCard)
 Creator: Andy Jenkinson (uglifruit)
-Version: "1.7.0"
+Version: "1.8.0"
 Status: Released
 License: CC-BY-4.0
 repository: https://github.com/uglifruit/WorkshopNibble
@@ -17,7 +17,7 @@ contact:
 
 uf2:
   - path: UF2/nibble.uf2
-    name: NIBBLE 1.7.0
+    name: NIBBLE 1.8.0
 
 tags:
   - keyboard
@@ -152,7 +152,7 @@ controls:
         description: KEYS - how that length is split between the filter and the loudness, morphing continuously between DARK (the filter shuts well before the note fades - plucks), BALANCED, and BRIGHT (the filter outlasts the amplitude so the note blooms - pads). DRUMS - tempo, 40 to 240 BPM, ignored while an external clock is running on Pulse In 1. Changing it re-times the pattern rather than pitching it.
       y:
         name: Scale / Kit*
-        description: "KEYS - one of twelve scales, ordered dark to bright from fully anticlockwise, shown on the LEDs as a bar while you turn it: Phrygian, Hirajoshi, Harmonic Minor, Natural Minor, Minor Pentatonic, m7 Arpeggio, Dorian, Major Pentatonic, Ionian (Major), Maj7 Arpeggio, Whole Tone, Chromatic. Because the ten combinations are ten DEGREES, the scale also sets the range - a four-note arpeggio spreads them over more than two octaves while Chromatic packs them into three quarters of one. DRUMS - the character of the whole kit at once, from lower and longer to higher and shorter, roughly half to double pitch and three decay steps either way. Applied when a voice is struck, so sweeping it never warps a sound that is already ringing."
+        description: "KEYS - one of twelve scales, ordered dark to bright from fully anticlockwise, shown on the LEDs as a bar while you turn it: Phrygian, Hirajoshi, Harmonic Minor, Natural Minor, Minor Pentatonic, m7 Arpeggio, Dorian, Major Pentatonic, Ionian (Major), Maj7 Arpeggio, Whole Tone, Chromatic. Because the ten combinations are ten DEGREES, the scale also sets the range - a four-note arpeggio spreads them over more than two octaves while Chromatic packs them into three quarters of one. DRUMS - the character of the whole kit at once, from lower and longer to higher and shorter, roughly half to double pitch and three decay steps either way. Applied when a voice is struck, so sweeping it never warps a sound that is already ringing - and its movements are RECORDED INTO THE LOOP alongside the filter, so a pattern can change its own kit character as it plays."
   leds:
     -
       display: list
@@ -260,9 +260,18 @@ host:
     pitching it. An event stores WHICH SOUND - kick, snare, crash - not which
     buttons made it, because how a hit was played belongs to the performance.
 
-    Hits quantise to 1/16 on playback; filter sweeps deliberately do not.
-    Arming record never silences the loop and never writes the knob's resting
-    position - automation is recorded only once the knob actually moves.
+    Hits quantise to 1/16 on playback; knob sweeps deliberately do not. Two
+    knobs are automated - the Main DJ filter and the Y kit character - on
+    separate lanes, so recording one never erases the other. Arming record never
+    silences the loop and never writes a knob's resting position: automation is
+    recorded only once the knob actually moves, and the physical knob reclaims
+    control the moment you move it again.
+
+    Sixteen voices can ring at once. When they are all busy the card steals the
+    QUIETEST rather than the oldest, so a voice near the end of its decay goes
+    before one that has just started. The old six-slot round robin was what made
+    a loop appear to erase itself after a few overdub passes: a crash rings for
+    nearly a second, and any six hits after it took its slot.
 
     LICENCE - CC-BY-4.0 covers this card's source: use, fork or sell it, just
     credit Andy Jenkinson (uglifruit). ComputerCard.h is Chris Johnson's and

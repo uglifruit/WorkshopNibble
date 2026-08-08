@@ -2,6 +2,7 @@
 
 #include "drums.h"
 #include "fastmath.h"
+#include <stdint.h>
 #include "pico.h"
 
 namespace nib {
@@ -39,7 +40,12 @@ const DrumSpec kVoices[kNumVoices] = {
 	{ HzToInc(6000),HzToInc(6000),9,   9,  256,   0,   0,  220 },  // 4  closed hat
 	{ HzToInc(7600),HzToInc(7600),8,   8,  256,   0,   1,  200 },  // 5  hi-hat metallic
 	{ HzToInc(7600),HzToInc(7600),11, 11,  256,   0,   1,  110 },  // 6  open hi-hat
-	{ HzToInc(5200),HzToInc(5200),14, 14,  256,   0,   1,   52 },  // 7  crash
+	// The crash has now been reported as too loud twice. Peak amplitude is a bad
+	// guide here: at 0.9 seconds it sustains through everything else, so it does
+	// not need to match a kick's level — it needs to sit UNDER it. 26/256 puts
+	// its total energy at 0.73x a kick, deliberately below parity rather than
+	// close to it, because a wash that competes with the beat is the complaint.
+	{ HzToInc(5200),HzToInc(5200),14, 14,  256,   0,   1,   26 },  // 7  crash
 	{ HzToInc(800),HzToInc(800), 11,   0,    0,   0,   0,  230 },  // 8  cowbell
 	{ HzToInc(420),HzToInc(90),  11,   0,    0,  10,   0,  230 },  // 9  tom 1 "pew"
 	{ HzToInc(300),HzToInc(110), 11,   8,   20,  11,   0,  180 },  // 10 syn tom 2
@@ -224,8 +230,34 @@ void DrumKit::TriggerVoice(int8_t voice, int32_t yKnob)
 	int32_t pitchScale = 32768 + y;                  // Q16 0.5 .. 1.5
 	int32_t decayAdj   = 3 - ((yKnob * 6) >> 12);    // +3 .. -3
 
-	voice_[next_].Trigger(kVoices[voice], pitchScale, decayAdj);
-	next_ = static_cast<uint8_t>((next_ + 1) % kMaxVoices);
+	voice_[PickSlot()].Trigger(kVoices[voice], pitchScale, decayAdj);
+}
+
+/// Choose a voice slot: a free one if there is one, otherwise the QUIETEST.
+///
+/// The old allocator was a blind round robin — `next_ = (next_ + 1) % n` — which
+/// takes the next slot whether or not it is still sounding. That is what made a
+/// loop appear to erase itself: a crash rings for 874ms, seven sixteenths at
+/// 120bpm, and the six hits that followed it each had an equal chance of being
+/// handed its slot.
+///
+/// Stealing by loudness rather than by age is what makes the failure inaudible
+/// when it does happen. A voice near the end of its decay is contributing almost
+/// nothing, so cutting it costs nothing; cutting the freshest one — which is
+/// what round robin does about as often as not — removes the loudest thing in
+/// the mix.
+uint8_t __not_in_flash_func(DrumKit::PickSlot)()
+{
+	int32_t quietest = INT32_MAX;
+	uint8_t pick = 0;
+
+	for (int i = 0; i < kMaxVoices; i++)
+	{
+		int32_t e = voice_[i].Energy();
+		if (e == 0) return static_cast<uint8_t>(i);   // free: take it
+		if (e < quietest) { quietest = e; pick = static_cast<uint8_t>(i); }
+	}
+	return pick;
 }
 
 int32_t __not_in_flash_func(DrumKit::Step)()

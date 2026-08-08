@@ -22,8 +22,18 @@ LOOP_TICKS = TICKS_PER_BEAT * BEATS_PER_LOOP      # 768
 QUANT_TICKS = TICKS_PER_BEAT // 4                 # 12
 NUM_VOICES = 12          # the looper stores VOICES, not key combos
 MAX_EVENTS = 512
-MAX_FILTER_EVENTS = 128
-FILTER_EVENT = 0x80
+MAX_KNOB_EVENTS = 192
+KNOB_EVENT = 0x80
+NUM_LANES = 2
+LANE_FILTER, LANE_TONE = 0, 1
+
+
+def is_knob(what):
+    return (what & KNOB_EVENT) != 0
+
+
+def lane_of(what):
+    return what & (NUM_LANES - 1)
 CTRL_RATE = 3000
 BPM_MIN, BPM_MAX = 40, 240
 Q16 = 65536
@@ -48,7 +58,7 @@ def fire_tick(ev):
     can move an event across the loop boundary, and an array sorted by raw tick
     is then not sorted by the order things sound - which double-fires events.
     """
-    if ev[1] == FILTER_EVENT:
+    if is_knob(ev[1]):
         return ev[0]
     q = ((ev[0] + QUANT_TICKS // 2) // QUANT_TICKS) * QUANT_TICKS
     return q % LOOP_TICKS
@@ -62,7 +72,7 @@ class Looper:
         self.phase = 0
         self.tick_inc = 0
         self.last_x = -9999
-        self.filter_count = 0
+        self.knob_count = 0
 
     def set_tempo_bpm(self, bpm):
         self.tick_inc = (bpm * TICKS_PER_BEAT * Q16) // (60 * CTRL_RATE)
@@ -90,38 +100,43 @@ class Looper:
             self.events[i] = self.events[i - 1]
             i -= 1
         self.events[i] = ev
-        if ev[1] == FILTER_EVENT:
-            self.filter_count += 1
+        if is_knob(ev[1]):
+            self.knob_count += 1
         if i < self.cursor:
             self.cursor += 1
 
     def remove(self, i):
         if i < 0 or i >= len(self.events):
             return
-        if self.events[i][1] == FILTER_EVENT and self.filter_count > 0:
-            self.filter_count -= 1
+        if is_knob(self.events[i][1]) and self.knob_count > 0:
+            self.knob_count -= 1
         del self.events[i]
         if i < self.cursor and self.cursor > 0:
             self.cursor -= 1
 
-    def record_filter_at(self, value):
-        """Automation REPLACES itself on the same tick rather than piling up."""
+    def record_filter_at(self, value, lane=LANE_FILTER):
+        """Automation REPLACES itself on the same tick rather than piling up.
+
+        Only THIS lane's events are dropped, so automating Y must not erase a
+        filter sweep sitting on the same tick.
+        """
+        what = KNOB_EVENT | lane
         i = 0
         while i < len(self.events):
-            if (self.events[i][1] == FILTER_EVENT
+            if (self.events[i][1] == what
                     and fire_tick(self.events[i]) == self.play_head):
                 self.remove(i)
             else:
                 i += 1
-        if self.filter_count >= MAX_FILTER_EVENTS:
+        if self.knob_count >= MAX_KNOB_EVENTS:
             return
-        self.insert([self.play_head, FILTER_EVENT, value])
+        self.insert([self.play_head, what, value])
 
     def record_hit(self, voice, vel=100):
         # A hit the player just performed outranks stale automation.
-        if len(self.events) >= MAX_EVENTS and self.filter_count > 0:
+        if len(self.events) >= MAX_EVENTS and self.knob_count > 0:
             for i, e in enumerate(self.events):
-                if e[1] == FILTER_EVENT:
+                if is_knob(e[1]):
                     self.remove(i)
                     break
         assert 0 <= voice < NUM_VOICES, "loop stores voices, not combos"
@@ -328,16 +343,16 @@ def test_automation_cannot_starve_hits():
             lp.record_filter_at((tick + _pass) & 0xFF)
 
     check("automation is capped, not unbounded",
-          lp.filter_count <= MAX_FILTER_EVENTS, True)
+          lp.knob_count <= MAX_KNOB_EVENTS, True)
     print("          after 20 passes of sweeping: %d automation events"
-          % lp.filter_count)
+          % lp.knob_count)
 
     # Now play some hits. Every one must be recorded.
-    before = len([e for e in lp.events if e[1] != FILTER_EVENT])
+    before = len([e for e in lp.events if not is_knob(e[1])])
     for i in range(32):
         lp.play_head = i * 20
         lp.record_hit(i % 10)
-    after = len([e for e in lp.events if e[1] != FILTER_EVENT])
+    after = len([e for e in lp.events if not is_knob(e[1])])
 
     check("all 32 hits recorded despite heavy automation",
           after - before, 32)
@@ -353,9 +368,34 @@ def test_automation_replaces_on_same_tick():
         lp.record_filter_at(v)
 
     at96 = [e for e in lp.events
-            if e[1] == FILTER_EVENT and fire_tick(e) == 96]
+            if is_knob(e[1]) and fire_tick(e) == 96]
     check("automation on one tick collapses to the latest", len(at96), 1)
     check("...and it is the most recent value", at96[0][2], 40)
+
+
+def test_lanes_are_independent():
+    """Two automation lanes share one array and one replace-on-tick rule.
+
+    Recording a Y move must not delete a filter move sitting on the same tick -
+    that would make the two knobs fight for one slot and each erase the other.
+    """
+    lp = Looper()
+    lp.set_tempo_bpm(120)
+    lp.play_head = 96
+    lp.record_filter_at(100, LANE_FILTER)
+    lp.record_filter_at(200, LANE_TONE)
+
+    at96 = [e for e in lp.events if is_knob(e[1]) and fire_tick(e) == 96]
+    check("lanes: both survive on the same tick", len(at96), 2)
+    lanes = sorted(lane_of(e[1]) for e in at96)
+    check("lanes: one of each", lanes, [LANE_FILTER, LANE_TONE])
+
+    # And each still replaces ITSELF.
+    lp.record_filter_at(150, LANE_FILTER)
+    at96 = [e for e in lp.events if is_knob(e[1]) and fire_tick(e) == 96]
+    check("lanes: a lane still replaces its own event", len(at96), 2)
+    filt = [e for e in at96 if lane_of(e[1]) == LANE_FILTER][0]
+    check("lanes: ...with the latest value", filt[2], 150)
 
 
 def test_clear_empties():
@@ -382,6 +422,7 @@ def main():
     test_full_buffer_drops_not_wraps()
     test_automation_cannot_starve_hits()
     test_automation_replaces_on_same_tick()
+    test_lanes_are_independent()
     test_events_stay_sorted()
     test_clear_empties()
     print()

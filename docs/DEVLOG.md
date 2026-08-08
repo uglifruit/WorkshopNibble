@@ -1,5 +1,65 @@
 # NIBBLE devlog
 
+## v1.8.0 — the loop was eating itself, and Y automation
+
+### Voice stealing, which is what "recording silences previous stuff" was
+
+Reported as the loop silencing earlier hits, intermittently, and getting worse
+with more passes. Neither of the two filter bugs already fixed explains
+"intermittently" — that pattern points at resource contention, and it was.
+
+Voice allocation was a blind round robin: `next_ = (next_ + 1) % 6`, taking the
+next slot whether or not it was still sounding. Six slots was reasoned from "you
+only have four fingers", which is the wrong question once a LOOP is playing — a
+four-bar pattern with several overdubbed passes fires far more overlapping hits
+than a pair of hands ever could.
+
+The arithmetic: at 120bpm a sixteenth is 125ms and the crash rings for nearly a
+second. That is seven sixteenths, so one crash needs seven slots to itself while
+a hat pattern runs underneath. With six slots, any six subsequent hits took it.
+
+Modelled across overdub passes:
+
+| passes | old (6, round robin) | new (16, steal quietest) |
+|---|---|---|
+| 1 | 0 cut off | 0 |
+| 3 | 23 | 0 |
+| 5 | 27 | 0 |
+| 8 | 46 | 0 |
+
+One pass was fine, which is exactly why it read as intermittent.
+
+Two changes. Sixteen slots rather than six — 40 bytes and one add per sample
+each, both noise here. And when they are all busy, steal the **quietest** rather
+than the next: a voice near the end of its decay contributes almost nothing, so
+cutting it is inaudible, whereas round robin cut the freshest about as often as
+not.
+
+### Crash, third time
+
+Down to 10% (0.73× a kick's energy, from 13.6× originally). Deliberately *under*
+parity rather than near it — a 0.7-second wash that competes with the beat is
+the complaint, and it does not need to match a kick to read as a crash.
+
+### Y is automated too
+
+The event format already had spare bits in `what` and the filter lane proved the
+mechanism, so this generalised rather than duplicated: `kKnobEvent | lane`, two
+lanes, one code path.
+
+Two things needed care. The replace-on-tick rule had to become **per lane**, or
+recording a Y move would delete a filter move sitting on the same tick and the
+two knobs would erase each other. And the sample countdown had to be checked and
+reset **once for both lanes** — a shared countdown consumed by whichever lane
+asked first would starve the other completely. `tools/loopsim.py` asserts both.
+
+The pickup logic also became a small `KnobPickup` struct rather than being
+duplicated. It carries three fixes that were each a separate bug: playback
+applies while recording, the reference is latched once, and the comparison is
+smoothed.
+
+---
+
 ## v1.7.0 — the kit was an octave and a half sharp
 
 ### Writing the documentation found a real bug

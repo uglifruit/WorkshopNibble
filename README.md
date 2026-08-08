@@ -245,7 +245,7 @@ at once — every number below is a live variable, not a recording.
 | closed hat | 6000 Hz | — | 46 ms | 86% |
 | hi-hat metallic | 7600 Hz | — | 23 ms | 78% |
 | open hi-hat | 7600 Hz | — | 153 ms | 43% |
-| crash | 5200 Hz | — | 874 ms | 20% |
+| crash | 5200 Hz | — | 704 ms | 10% |
 | cowbell | 800 Hz | — | 178 ms | 90% |
 | tom 1 "pew" | 420 → 90 Hz | 49 ms | 178 ms | 90% |
 | syn tom 2 | 300 → 110 Hz | 97 ms | 166 ms | 70% |
@@ -254,9 +254,12 @@ at once — every number below is a live variable, not a recording.
 **Pitch** is where the body starts and, where it sweeps, where it lands.
 **Fall** is how long that sweep takes — the exponential drop that makes the toms
 read as Simmons-style rather than as short bass notes. **Length** is how long
-the voice stays audible. **Level** is its weight in the mix: the crash sits at
-20% because a 0.9-second wash at full scale carries many times a kick's energy
-and buries everything.
+the voice stays audible. **Level** is its weight in the mix, and it is not
+cosmetic: peak amplitude stops being a proxy for loudness once decay times
+differ by twenty-fold. The crash sits at 10% precisely *because* it is the
+longest voice — at full scale it delivered thirteen times a kick's total energy
+and buried the kit. It now lands at 0.73×, deliberately under the beat rather
+than level with it.
 
 The three cymbal voices — **hi-hat metallic**, **open hi-hat** and **crash** —
 are *ring-modulated* against a second oscillator at a deliberately non-integer
@@ -266,15 +269,21 @@ is not, so the two hats sit differently in a pattern.
 **Y** shifts the whole kit together: anticlockwise is lower and longer,
 clockwise higher and shorter, roughly half to double pitch and ±3 decay steps.
 It applies when a voice is *struck*, so sweeping the knob never warps a sound
-that is already ringing.
+that is already ringing — **and its movements are recorded into the loop**,
+alongside the filter. Two automation lanes, so a pattern can change its own kit
+character as it goes.
+
+Sixteen voices can ring at once, and when they are all busy the card steals the
+**quietest** rather than the oldest — so a voice near the end of its decay goes
+before one that has just started.
 
 ### Panel
 
 | Control | Does |
 |---------|------|
-| **Main** | DJ filter — low-pass left, bypass at centre, high-pass right |
+| **Main** | DJ filter — low-pass left, bypass at centre, high-pass right — **recorded into the loop** |
 | **X** | Tempo, 40–240 BPM — ignored while an external clock is running |
-| **Y** | Kit character: lower and longer ↔ higher and shorter |
+| **Y** | Kit character: lower and longer ↔ higher and shorter — **recorded into the loop** |
 | **Switch MID** | Play the loop |
 | **Switch UP** | Record / overdub |
 | **Switch tap** | Retrigger the last sound |
