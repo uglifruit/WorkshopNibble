@@ -3,7 +3,7 @@ Name: NIBBLE
 short-description: Turns the Workshop System's mysterious four buttons into tools to make melodic lines and lo-fi drum loops
 Language: C++ (ComputerCard)
 Creator: Andy Jenkinson (uglifruit)
-Version: "1.11.0"
+Version: "1.11.1"
 Status: Released
 License: CC-BY-4.0
 repository: https://github.com/uglifruit/WorkshopNibble
@@ -17,7 +17,7 @@ contact:
 
 uf2:
   - path: UF2/nibble.uf2
-    name: NIBBLE 1.11.0
+    name: NIBBLE 1.11.1
 
 tags:
   - keyboard
@@ -197,11 +197,12 @@ host:
     than re-forming similar grips. Hold each combination and TAP the switch to
     capture it.
 
-    All six LEDs flash to confirm. LEDs 4 and 5 flashing once means the voltage
-    was still moving - hold steady and tap again. Flashing three times means the
-    capture was kept but that combination is too close to an earlier one to
-    separate reliably; the calibration still completes, and you can move the
-    Four Voltages knob and run it again.
+    All six LEDs flash to confirm. The BUTTON leds 0-3 fluttering means the
+    voltage was still moving - your hand, so hold steady and tap again. The
+    MARKER leds 4 and 5 blinking means the capture was kept but that combination
+    is too close to an earlier one to separate reliably; the calibration still
+    completes, and you can move the Four Voltages knob and run it again. The two
+    warnings use different lights deliberately.
 
     Calibration is NOT saved across power cycles, on purpose. The Four Voltages
     knob moves every voltage it produces, so a remembered calibration would be a

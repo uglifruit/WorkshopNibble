@@ -93,8 +93,26 @@ constexpr uint8_t kLearnOrder[kNumLevels] = { kA, kB, kC, kD,
 /// panel. Its only job is to stop a card being left permanently in learn.
 constexpr int32_t kLearnTimeoutTicks = 30 * kCtrlRate;
 
+/// Blink shifts for the learn-mode LEDs, as `(timer >> shift) & 1`.
+///
+/// These MUST be checked against the rate the timer actually ticks at, which is
+/// the 3kHz control rate — a shift of 5 gives 47Hz, well above flicker fusion,
+/// so it reads as a dim steady glow rather than as a blink. Every alert in this
+/// mode was written with shift 4, 5 or 6 and was therefore invisible: reported
+/// from the bench as "the alerts aren't happening", including with nothing
+/// patched in, which should collide on every single step.
+///
+///   >>7 = 11.7Hz   urgent but countable
+///   >>8 =  5.9Hz   a clear warning blink
+///   >>9 =  2.9Hz   slow and deliberate
+///
+/// Anything below >>7 at this tick rate is not a blink.
+constexpr int kBlinkFast = 7;    ///< ~12Hz, for "something is wrong"
+constexpr int kBlinkSlow = 8;    ///< ~6Hz, for a countable warning
+
 constexpr int32_t kCaptureFlashTicks   = kCtrlRate / 5;    // 200ms
-constexpr int32_t kCollisionFlashTicks = kCtrlRate / 2;    // ~450ms
+constexpr int32_t kCollisionFlashTicks = kCtrlRate / 2;    // 500ms, ~3 blinks
+constexpr int32_t kNotSettledTicks     = kCtrlRate / 3;    // 330ms
 constexpr int32_t kDoneFlashTicks      = (kCtrlRate * 2) / 5;
 constexpr int32_t kScaleShowTicks      = (kCtrlRate * 6) / 5;   // 1.2s
 
@@ -111,7 +129,7 @@ constexpr int32_t kClickSamples = kSampleRate / 500;   // 2ms
 enum class UiMode : uint8_t { Play, Learn };
 
 /// What the learn machine is doing between captures.
-enum class LearnPhase : uint8_t { Waiting, Confirm, Collision, Done, Failed, Aborted };
+enum class LearnPhase : uint8_t { Waiting, Confirm, Collision, NotSettled, Done, Failed, Aborted };
 
 /// A learn is REJECTED outright if the ten captured levels do not span at least
 /// this much of the input range.
@@ -746,8 +764,12 @@ private:
 		// recording a number from the middle of a slew.
 		if (!levels_.Settled())
 		{
-			learnPhase_ = LearnPhase::Collision;    // reuses the 4+5 flash
-			phaseTimer_ = kCaptureFlashTicks;
+			// Its own phase, not the collision one. They used to share a
+			// pattern and differ only in duration, which is no difference at
+			// all to look at — "hold steadier" and "these two combos are
+			// indistinguishable" call for completely different reactions.
+			learnPhase_ = LearnPhase::NotSettled;
+			phaseTimer_ = kNotSettledTicks;
 			return;
 		}
 
@@ -765,6 +787,11 @@ private:
 			if (d < 0) d = -d;
 			if (d < kCollisionMin) collided = true;
 		}
+		// Counted for every step INCLUDING the last, which is why this sits
+		// above the branch rather than inside the else. The final step gets no
+		// per-step flash of its own — it goes straight to the Done or Failed
+		// announcement — but it still has to be counted, or the end-of-learn
+		// warning would under-report a collision on the tenth capture.
 		if (collided) collisionsThisLearn_++;
 
 		learnStep_++;
@@ -970,12 +997,22 @@ private:
 			for (int i = 0; i < kNumLeds; i++) LedOn(i, true);
 			return;
 
+		case LearnPhase::NotSettled:
+			// "The voltage was still moving." Distinct from a collision: the
+			// BUTTON leds flutter rather than the phase markers, which reads as
+			// "your hand, not the card" — hold it steady and tap again.
+			LedOff(4);
+			LedOff(5);
+			for (int i = 0; i < 4; i++)
+				LedOn(i, ((phaseTimer_ >> kBlinkFast) & 1) != 0);
+			return;
+
 		case LearnPhase::Collision:
 			// Only the phase markers flash, so a collision reads differently
 			// from a clean capture without stopping the learn.
 			for (int i = 0; i < 4; i++) LedOff(i);
-			LedOn(4, ((phaseTimer_ >> 5) & 1) != 0);
-			LedOn(5, ((phaseTimer_ >> 5) & 1) != 0);
+			LedOn(4, ((phaseTimer_ >> kBlinkSlow) & 1) != 0);
+			LedOn(5, ((phaseTimer_ >> kBlinkSlow) & 1) != 0);
 			return;
 
 		case LearnPhase::Done:
@@ -991,7 +1028,7 @@ private:
 
 			if (collisionsThisLearn_)
 			{
-				bool f = ((phaseTimer_ >> 5) & 1) != 0;
+				bool f = ((phaseTimer_ >> kBlinkSlow) & 1) != 0;
 				LedBrightness(4, f ? kLedFull : 0);
 				LedBrightness(5, f ? kLedFull : 0);
 			}
@@ -1009,12 +1046,12 @@ private:
 			// COLUMNS alternating, fast. Not the gentle fade of a success and
 			// not the double blink of a deliberate abort.
 			for (int i = 0; i < kNumLeds; i++)
-				LedOn(i, (((phaseTimer_ >> 4) & 1) != 0) == ((i & 1) == 0));
+				LedOn(i, (((phaseTimer_ >> kBlinkFast) & 1) != 0) == ((i & 1) == 0));
 			return;
 
 		case LearnPhase::Aborted:
 			for (int i = 0; i < kNumLeds; i++)
-				LedOn(i, ((phaseTimer_ >> 6) & 1) != 0);
+				LedOn(i, ((phaseTimer_ >> kBlinkSlow) & 1) != 0);
 			return;
 
 		case LearnPhase::Waiting:

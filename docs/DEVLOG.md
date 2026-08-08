@@ -1,5 +1,48 @@
 # NIBBLE devlog
 
+## v1.11.1 — the calibration alerts were blinking at 47Hz
+
+Reported that the calibration warnings did not seem to fire — including with
+nothing patched in, which should collide on every step after the first.
+
+They were firing. They were invisible.
+
+Every animated LED in learn mode is `(timer >> shift) & 1`, and the timer ticks
+at the 3kHz control rate. A shift of 5 is therefore **47Hz**, far above flicker
+fusion — it reads as a dim steady glow, not a blink. The patterns were:
+
+| Alert | Shift | Rate | |
+|---|---|---|---|
+| Failure (columns alternating) | `>>4` | 94Hz | invisible |
+| Collision (markers) | `>>5` | 47Hz | invisible |
+| Abort (all six) | `>>6` | 23Hz | barely a shimmer |
+| Which button to press | `>>7` | 12Hz | **visible** |
+
+That last row is the tell: the one animation anyone had ever seen working was
+also the only one slow enough to see. The rates are named constants now
+(`kBlinkFast` 12Hz, `kBlinkSlow` 6Hz) with the arithmetic written down, because
+"pick a shift" is exactly the kind of decision that looks arbitrary and is not.
+
+### The two warnings looked identical anyway
+
+"Voltage still moving" reused `LearnPhase::Collision` — the same LEDs, differing
+only in duration, which is no difference at all to look at. They call for
+completely different reactions: one is *hold your hand steadier*, the other is
+*these two combinations cannot be told apart, move the Four Voltages knob*.
+
+`NotSettled` is its own phase now and flutters the four BUTTON LEDs, while a
+collision blinks the two MARKER LEDs. Your hand versus the card.
+
+### Checked while in there
+
+The collision count does include the final step — `collisionsThisLearn_++` sits
+above the branch. The tenth capture gets no per-step flash (it goes straight to
+the Done or Failed announcement) but it is still counted, so the end-of-learn
+warning does not under-report. Comment added to say so, since the placement
+looks accidental and is not.
+
+---
+
 ## v1.11.0 — documentation, after calling it working
 
 No code. The card is played and behaving; this is the pass that makes the

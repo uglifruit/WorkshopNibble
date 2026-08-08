@@ -116,8 +116,11 @@ diagonals**.
 | While it runs | |
 |---|---|
 | All six flash | captured |
-| LEDs 4 and 5 flash once | the voltage was still moving — hold steady and tap again |
-| LEDs 4 and 5 flash three times | captured, **but** too close to an earlier combination to tell apart |
+| **LEDs 0–3 flutter** (the button lights) | the voltage was still moving — hold steady and tap again |
+| **LEDs 4 and 5 blink** (the phase markers) | captured, **but** too close to an earlier combination to tell apart |
+
+The two warnings use different lights on purpose: the *button* LEDs mean it was
+your hand, the *marker* LEDs mean it was the card.
 
 ### How it ends, and what to do about it
 
