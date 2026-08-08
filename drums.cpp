@@ -16,16 +16,30 @@ namespace nib {
 
 const DrumSpec kKit[kNumLevels] = {
 	// pitch0 floor  decay noise  mix  sweep
-	{  220,    4,     12,    0,     0,   2 },   // A  kick
-	{  400,   24,      9,    7,   140,   1 },   // B  snare
-	{  900,  900,      6,    6,   256,   0 },   // C  closed hat
-	{  900,  900,     10,   10,   256,   0 },   // D  open hat
-	{  700,  700,      5,    5,    40,   0 },   // AB rim
-	{  300,   90,     11,    8,    20,   1 },   // AC low tom
-	{  420,  140,     11,    8,    20,   1 },   // AD mid tom
-	{  560,  200,     10,    8,    20,   1 },   // BC high tom
-	{  500,  500,      8,    8,   256,   0 },   // BD clap
-	{ 1100, 1100,      7,    0,     0,   0 },   // CD cowbell
+	//
+	// The four SINGLE slots are shifts and never sound (see FireCombo in
+	// main.cpp), so they are only reachable from a recorded loop. They are kept
+	// as spare voices rather than deleted — the array is indexed by combo and
+	// the looper can still fire them.
+	{  300,   90,     11,    8,    20,   1 },   // A  (silent) low tom
+	{  420,  140,     11,    8,    20,   1 },   // B  (silent) mid tom
+	{  560,  200,     10,    8,    20,   1 },   // C  (silent) high tom
+	{ 1100, 1100,      7,    0,     0,   0 },   // D  (silent) cowbell
+
+	// THE PLAYABLE KIT. Only these six can be reached with the fingers, so
+	// between them they have to be a usable drum kit rather than a box of
+	// extras. An earlier arrangement put kick, snare and both hats on the
+	// singles and left the pairs holding a rim, three toms, a clap and a
+	// cowbell — six sounds you cannot build a beat out of.
+	//
+	// Laid out so the two most-used voices are the two easiest shapes. AB is
+	// the top row and CD the bottom row: one hand, no reaching.
+	{  220,    4,     12,    0,     0,   2 },   // AB kick        (top row)
+	{  900,  900,      6,    6,   256,   0 },   // AC closed hat  (left column)
+	{  500,  500,      8,    8,   256,   0 },   // AD clap        (diagonal)
+	{  900,  900,     10,   10,   256,   0 },   // BC open hat    (anti-diagonal)
+	{  700,  700,      5,    5,    40,   0 },   // BD rim         (right column)
+	{  400,   24,      9,    7,   140,   1 },   // CD snare       (bottom row)
 };
 
 namespace {

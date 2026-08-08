@@ -13,7 +13,7 @@ time you touch the knob, and nothing downstream knows what to do with them.
 
 NIBBLE learns them. Patch one Four Voltages output into CV In 1, teach the card
 which voltage each combination makes, and the ten combinations become ten notes
-of a scale — or ten lo-fi drum sounds with a looper behind them.
+of a scale — or a lo-fi drum kit with a looper behind it.
 
 Four buttons is four bits is one nibble. Hence the name.
 
@@ -23,8 +23,8 @@ Four buttons is four bits is one nibble. Hence the name.
 
 | Boot | How | What |
 |------|-----|------|
-| **KEYS** | normal power-on | A ten-note keyboard. 1V/oct out, three envelope CVs, a gate. |
-| **DRUMS** | hold the momentary switch at power-on | Ten parametric percussion voices, a four-bar event looper with lossless overdub, and a DJ filter. |
+| **KEYS** | normal power-on | A ten-note keyboard: pitch and harmony on 1V/oct, two envelope CVs, a gate. |
+| **DRUMS** | hold the momentary switch at power-on | Six parametric percussion voices played shift-and-tap, a four-bar event looper with lossless overdub, and a DJ filter. |
 
 The LEDs say which one you got: KEYS lights the left column, DRUMS the right.
 
@@ -78,6 +78,8 @@ diagonals**.
 | LEDs 4 and 5 flash once | the voltage was still moving — hold steady and tap again |
 | LEDs 4 and 5 flash three times | captured, **but** this combination is too close to another one to tell apart |
 | All six ramp up and fade | done |
+| Ramp and fade, with LEDs 4 + 5 flashing over it | done, but something collided |
+| Columns alternating fast, ~1.5 s | **failed** — nothing usable came in |
 | All six flash twice | aborted (hold for 2s again at any point) |
 
 Learning is **not saved across power cycles**, deliberately. A stored
@@ -94,8 +96,16 @@ three** — they respond differently to the same buttons, and it costs nothing b
 moving a cable.
 
 Until you calibrate, the card runs an evenly-spaced guess so it still does
-something. In KEYS, LED 5 tells you where you stand: **off** = never learned,
-**slow blink** = learned but something collided, **solid** = learned cleanly.
+something. In KEYS, **LED 5 solid** means it is running a real calibration;
+**off** means it is still guessing.
+
+### If nothing is patched in
+
+Calibration **fails** rather than pretending. If all ten captures land on
+essentially the same voltage — nothing in CV In 1, a dead cable — the two LED
+columns alternate rapidly for a second and a half and the previous calibration
+is kept. It is a deliberately different pattern from the gentle fade of success
+or the double blink of an abort.
 
 ---
 
@@ -110,8 +120,8 @@ degrees; adding a second finger climbs.
 
 | Control | Does |
 |---------|------|
-| **Main** | Macro: length, filter and loudness together |
-| **X** | How the macro is shared between those three |
+| **Main** | Macro: how long the note lasts |
+| **X** | How that length is split between filter and loudness |
 | **Y** | Scale — twelve of them, ordered dark → bright (LEDs show a bar while you turn) |
 | **Switch UP** | Fast glide between notes |
 | **Switch MID** | Stepped pitch |
@@ -125,21 +135,27 @@ degrees; adding a second finger climbs.
 | CV In 2 | Transpose, 1V/oct, ±2 octaves (only when patched) |
 | Pulse In 1 | Retrigger |
 | CV Out 1 | **1V/oct pitch**, calibrated |
-| CV Out 2 | LENGTH envelope |
+| CV Out 2 | **1V/oct harmony** — a third above, in the current scale |
 | Audio Out 1 | FILTER envelope |
 | Audio Out 2 | LOUDNESS envelope |
 | Pulse Out 1 | Gate on every note |
 
-The three envelopes are meant for driving an external envelope, filter and VCA —
-patch them at Slopes and the Humpback filters and one macro knob shapes the
-whole voice. Note the audio outputs are DC-coupled and carry CV happily, but
-they are **not** calibrated the way the CV outputs are: fine for modulation, not
-accurate enough for pitch.
+The two envelopes are for driving an external filter and VCA — patch them at the
+Humpback filters and an amplifier and one macro knob shapes the whole voice.
+They run from about **25 ms to over five seconds**, so the macro covers clicks
+through to long swells. Note the audio outputs are DC-coupled and carry CV
+happily, but they are **not** calibrated the way the CV outputs are: fine for
+modulation, not accurate enough for pitch.
 
-The X knob morphs between three relationships: **LONG** (long decays, filter
-mostly shut, always audible), **BALANCED** (all three follow the macro equally),
-and **BRIGHT** (short, open, with the loudness squared so the top of the macro
-pops as an accent).
+The X knob morphs between three relationships: **DARK** (the filter closes well
+before the note fades — plucks and muted things), **BALANCED** (both together),
+and **BRIGHT** (the filter outlasts the amplitude, so the note blooms rather
+than shutting down — pads and swells).
+
+**CV Out 2 is a second voice**, not a modulation source: the same note a third
+higher, picked from whichever scale the Y knob is on, so it is major or minor
+according to where you are in the scale. Patch it to a second oscillator with
+Pulse Out 1 as a shared gate and the ten buttons play two-part harmony.
 
 ### The scales
 
@@ -176,13 +192,44 @@ Root is C2, and **CV In 2** transposes the lot.
 ## DRUMS
 
 Hold the momentary switch at power-on. Same calibration, same ghost rule — but
-now the combinations are a kit. Kick and snare sit on the bare A and B, because
-the sounds you hit most should need the fewest fingers.
+the buttons work differently, and this is the important part:
 
-| | | | | |
-|---|---|---|---|---|
-| A **kick** | B **snare** | C closed hat | D open hat | AB rim |
-| AC low tom | AD mid tom | BC high tom | BD clap | CD cowbell |
+> **A single button is a SHIFT, not a sound. Only pairs make a noise.**
+
+Hold one button down and tap the others. Hold **C** and tap A, B or D for three
+different sounds; hold **D** and tap A, B or C for three more. Keep tapping the
+same one and it repeats cleanly, as fast as you like.
+
+That is there because percussion is mostly *repeated hits on the same drum*, and
+a keyboard reading of the buttons cannot do it: to play AC twice you have to pass
+back through C, and if C were itself a sound then every repeat would be
+interrupted by a spurious one. Silent singles make the four buttons into
+bank-selects you can hold for as long as you want.
+
+Six voices, one per pair — and because these six are all you can reach with your
+fingers, they are a whole kit rather than a box of extras:
+
+| Pair | Shape | Sound |
+|------|-------|-------|
+| **A+B** | top row | kick |
+| **C+D** | bottom row | snare |
+| **A+C** | left column | closed hat |
+| **B+D** | right column | rim |
+| **A+D** | diagonal | clap |
+| **B+C** | anti-diagonal | open hat |
+
+Which means every shift gives you three usable voices under one hand:
+
+| Hold | tap A | tap B | tap C | tap D |
+|------|-------|-------|-------|-------|
+| **A** | — | kick | closed hat | clap |
+| **B** | kick | — | open hat | rim |
+| **C** | closed hat | open hat | — | snare |
+| **D** | clap | rim | snare | — |
+
+Hold **A** and you have kick, hat and clap without moving your hand. Kick and
+snare are each reachable from two different shifts, so you rarely have to
+re-grip mid-bar.
 
 Everything is **synthesised, not sampled**: pitch-swept triangle bodies with
 exponential decay and a noise mix per voice, in the manner of Wild Pebble. That
@@ -198,12 +245,12 @@ and slow to tight and clicky without a resampler in the way.
 | Control | Does |
 |---------|------|
 | **Main** | DJ filter — low-pass left, bypass at centre, high-pass right |
-| **X** | Tempo, 40–240 BPM |
+| **X** | Tempo, 40–240 BPM — ignored while an external clock is running |
 | **Y** | Kit character: lower and longer ↔ higher and shorter |
 | **Switch MID** | Play the loop |
 | **Switch UP** | Record / overdub |
-| **Switch UP, held 2s** | Erase the loop (only when you are not playing) |
 | **Switch tap** | Retrigger the last sound |
+| **Switch held 2s** | Calibrate — **and erase the loop** |
 
 ### The looper
 
@@ -214,6 +261,17 @@ pitching it, and why filter-knob moves can be recorded alongside the hits.
 
 Hits are quantised to 1/16 on playback; filter sweeps deliberately are not.
 Punching in with the switch does not reset the loop position.
+
+**Patch a clock into Pulse In 1** and the loop follows it — one pulse per beat,
+taking over from the X knob for as long as it keeps arriving, and handing back
+about three seconds after it stops. It nudges into phase rather than snapping,
+so locking to an external clock never stutters the pattern.
+
+To **erase**, hold the switch for two seconds to re-enter calibration. That is
+the erase gesture: every other control is spoken for while playing, and the four
+singles in particular get held for long stretches as shifts, so anything
+button-based would fire constantly. Recalibrating is also the one moment a stale
+loop is guaranteed to be meaningless — the levels are about to change.
 
 ---
 

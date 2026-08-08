@@ -1,9 +1,13 @@
-# First hardware session — what to check, in order
+# Hardware session — what to check, in order
 
-Nothing in NIBBLE has touched a real Workshop System yet. Everything is
-model-verified and compiler-verified only. This is the running order for the
-first session, arranged so that each step's failure mode is distinguishable
-from the next one's.
+Arranged so that each step's failure mode is distinguishable from the next
+one's.
+
+**Session 1 found:** calibration and triggering both good. Envelopes far too
+short (a real bug — they capped at 43 ms regardless of the knob). LED 5 blinking
+distractingly. Ghost notes shown on the LEDs instead of the held combo. Singles
+triggering in DRUMS, which fights repeated hits. Overdub appearing to overwrite
+hits. All fixed in v1.1.0; the list below is updated for it.
 
 Flash `FLASHME/nibble.uf2` (hold BOOTSEL, plug in USB, drag it across).
 
@@ -86,7 +90,15 @@ cannot be found where most steps are clean, **try one of the other three Four
 Voltages outputs** before concluding anything — they respond differently to the
 same buttons.
 
-Afterwards LED 5 should be **solid** (clean) or **slow-blinking** (collisions).
+Afterwards LED 5 should be **solid** — it now just means "running a real
+calibration", with no blinking while you play. If any step collided, the
+finishing fade has LEDs 4 and 5 flashing over the top; that is the one and only
+report.
+
+**Also worth testing now:** run a calibration with **nothing patched into
+CV In 1**. It should FAIL — the two LED columns alternating rapidly for about a
+second and a half — and keep whatever calibration was there before. If it
+completes normally, the span check is too loose.
 
 ---
 
@@ -129,31 +141,59 @@ envelope.
 
 ---
 
-## 6. Envelopes
+## 6. Envelopes and harmony
 
-Scope or listen to **CV Out 2** (length), **Audio Out 1** (filter), **Audio
-Out 2** (loudness).
+Scope or listen to **Audio Out 1** (filter env) and **Audio Out 2** (loudness
+env). These were the ones that felt far too short in session 1.
 
-- **Main** should move all three together.
-- **X** should change how they are shared: fully CCW favours long decays,
-  centre is even, fully CW is short and bright with the loudness popping at the
-  top of the macro.
+- **Main fully CCW** → both should be short, tens of milliseconds.
+- **Main fully CW** → the filter should run to roughly **3.5 seconds** and the
+  loudness to roughly **5.5 seconds**. If they still top out around a twentieth
+  of a second, `kEnvFrac` in `keys.h` is not doing its job.
+- The peak no longer drops as you shorten them, so a short note should still be
+  a LOUD note.
+- **X** now splits filter against loudness: CCW the filter shuts well before the
+  note fades (plucks), CW it outlasts the amplitude so the note blooms (pads).
 
-Practical patch: CV Out 2 → Slopes, Audio Out 1 → Humpback FM, Audio Out 2 →
-a VCA.
+**CV Out 2 is a harmony voice now**, not an envelope. Patch it to a second
+oscillator, with Pulse Out 1 as a shared gate:
+
+- Every note should be accompanied by one a third above, in key.
+- Turn **Y** and the harmony should change flavour with the scale — major and
+  minor thirds according to position.
+- On **Chromatic** it should be a major third, not a whole tone.
+- **Switch UP** should glide both voices together, not one under the other.
+
+Practical patch: Audio Out 1 → Humpback FM, Audio Out 2 → an amplifier,
+CV Out 1 and CV Out 2 → the two oscillators.
 
 ---
 
-## 7. DRUMS
+## 7. DRUMS — shift and tap
 
 Power-cycle holding the switch. Audio Out 1 and 2 both carry the whole kit.
 
-- Ten sounds: A kick, B snare, C/D hats, then the pairs.
-- **Y** should shift the whole kit lower/longer ↔ higher/shorter.
+**A single button should now make NO sound at all.** That is the change: singles
+are shifts. If a bare press triggers anything, the suppression in `FireCombo()`
+is not working.
+
+Six voices, reachable as pairs:
+
+| Hold | tap A | tap B | tap C | tap D |
+|------|-------|-------|-------|-------|
+| **A** | — | kick | closed hat | clap |
+| **B** | kick | — | open hat | rim |
+| **C** | closed hat | open hat | — | snare |
+| **D** | clap | rim | snare | — |
+
+The thing to test hardest: **hold A and tap B repeatedly.** You should get a
+clean run of kicks, as fast as you can tap, with no extra sounds between them.
+That is the whole reason singles went silent.
+
+- **Y** should shift the kit lower/longer ↔ higher/shorter.
 - **Main** is the DJ filter: low-pass left, **bypass at centre**, high-pass
-  right. The centre should be findable by feel and audibly do nothing.
-- Nothing should ever clip harshly or click — the soft clipper is modelled but
-  never heard.
+  right. Centre should be findable by feel and audibly do nothing.
+- Nothing should clip harshly — the soft clipper is modelled but never heard.
 
 ---
 
@@ -161,13 +201,20 @@ Power-cycle holding the switch. Audio Out 1 and 2 both carry the whole kit.
 
 - **Switch MID** = play, **UP** = record.
 - Record a few hits; they should loop, quantised to 1/16.
-- **Overdub several passes** — the earlier hits must not degrade at all. That is
-  the whole point of storing events rather than audio.
-- Move **Main** while recording; the filter sweep should play back with the
-  pattern.
+- **Overdub many passes** — earlier hits must not degrade, and must not stop
+  being recorded. Session 1 reported hits being overwritten; the cause was
+  filter automation filling the shared buffer, now capped. **Sweep the Main
+  knob for several passes and then play more hits** — those hits must still
+  record.
+- Move **Main** while recording; the sweep should play back with the pattern,
+  and a second pass over the same spot should REPLACE the first rather than
+  fight it.
 - Turn **X** — the pattern should speed up or slow down, *not* change pitch.
-- **Hold UP for 2s without playing** → all six LEDs flash, loop erased.
-  (Playing anything during the hold should cancel the erase.)
+- **Patch a clock into Pulse In 1** (one pulse per beat). The loop should follow
+  it, X should stop having any effect, and it should hand back to the knob about
+  three seconds after the clock stops. Locking on should not stutter the
+  pattern.
+- **Hold the switch 2 s** → calibration starts AND the loop is erased.
 
 ---
 
@@ -175,14 +222,20 @@ Power-cycle holding the switch. Audio Out 1 and 2 both carry the whole kit.
 
 In rough priority order:
 
-1. **Which calibration steps collided**, and at what Four Voltages knob
-   position. Whether a clean position exists.
-2. Whether the **ghost rule** behaves as described in step 4.
-3. Whether the **tolerance constants** need moving — `kSettleTol`,
+1. Whether the **envelopes** are now long enough, and whether the DARK/BALANCED/
+   BRIGHT sweep on X is a useful axis or just three flavours of the same thing.
+2. Whether the **six-voice kit** is the right six, and whether the shift-and-tap
+   layout falls under the hand. The mapping is a table in `drums.cpp` and is
+   cheap to change.
+3. Whether **repeated hits** (hold A, tap B fast) are genuinely clean.
+4. Whether the **harmony** on CV Out 2 is musical, or whether a fifth would be
+   better than a third.
+5. Whether **overdub** now behaves under heavy knob movement.
+6. Whether the **external clock** locks and releases cleanly.
+7. Drum voice tuning — the presets are still plausible numbers rather than
+   auditioned ones.
+8. Whether the **tolerance constants** need moving — `kSettleTol`,
    `kMatchWindow`, `kCollisionMin` at the top of `levels.h`. Symptoms:
    - notes flickering between two neighbours → `kDeadband`/`kCollisionMin` too small
    - presses ignored → `kMatchWindow` too small, or `kSettleTicks` too long
    - notes firing while your finger is still landing → `kSettleTicks` too short
-4. Whether **12 ms** of settle latency is playable or feels sluggish.
-5. Drum voice tuning — the ten presets are plausible numbers, never auditioned.
-6. Whether hold-UP-to-erase is comfortable or too easy to trigger by accident.

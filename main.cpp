@@ -15,19 +15,24 @@
 //
 //   CV In 1      Four Voltages output          (the keyboard itself)
 //   CV In 2      transpose, 1V/oct             (KEYS only, when patched)
-//   Pulse In 1   retrigger the current note/sound
+//   Pulse In 1   KEYS: retrigger  /  DRUMS: external clock, 1 edge per beat
 //
 //   KEYS                                DRUMS
-//   Main   macro: length/filter/loud    Main   DJ filter (LP | bypass | HP)
-//   X      how the macro is shared      X      tempo, 40-240bpm
+//   Main   macro: envelope length       Main   DJ filter (LP | bypass | HP)
+//   X      filter vs loudness split     X      tempo, 40-240bpm (unless clocked)
 //   Y      scale                        Y      kit character
 //   Switch UP = glide, MID = step       Switch UP = record, MID = play
+//   Switch hold 2s = calibrate          Switch hold 2s = calibrate + clear loop
 //
-//   CV Out 1     1V/oct pitch                  Audio Out 1  drum bus L
-//   CV Out 2     LENGTH envelope               Audio Out 2  drum bus R
+//   CV Out 1     1V/oct pitch                  Audio Out 1  drum bus
+//   CV Out 2     1V/oct harmony, a third       Audio Out 2  drum bus
 //   Audio Out 1  FILTER envelope
 //   Audio Out 2  LOUDNESS envelope
 //   Pulse Out 1  gate on every note            Pulse Out 1  gate on every hit
+//
+// In DRUMS a SINGLE button is a shift, not a sound: only pairs trigger. That is
+// what lets you hold one button and tap the others to repeat a hit, which is
+// what percussion actually needs.
 //
 // ---------------------------------------------------------------------------
 // SINGLE CORE, DELIBERATELY
@@ -89,15 +94,28 @@ constexpr int32_t kScaleShowTicks      = (kCtrlRate * 6) / 5;   // 1.2s
 /// downstream to see it and short enough not to smear fast playing.
 constexpr int32_t kGateSamples = kSampleRate / 200;
 
-/// Hold Switch UP this long, with no hits played, to erase the loop.
-constexpr int32_t kClearHoldTicks = 2 * kCtrlRate;
-
 // ---------------------------------------------------------------------------
 
 enum class UiMode : uint8_t { Play, Learn };
 
 /// What the learn machine is doing between captures.
-enum class LearnPhase : uint8_t { Waiting, Confirm, Collision, Done, Aborted };
+enum class LearnPhase : uint8_t { Waiting, Confirm, Collision, Done, Failed, Aborted };
+
+/// A learn is REJECTED outright if the ten captured levels do not span at least
+/// this much of the input range.
+///
+/// The case this exists for is calibrating with nothing patched into CV In 1:
+/// every step captures the same floating value, the card cheerfully builds a
+/// table of ten identical levels, and then plays one note forever. That looked
+/// like a working calibration and a broken card.
+///
+/// 400 units is about 1.2V. Ten levels genuinely spread across a Four Voltages
+/// output cover several volts, so this rejects only the degenerate cases —
+/// nothing patched, a dead cable, or every button read as the same voltage.
+constexpr int32_t kMinLearnSpan = 400;
+
+/// How long the failure is announced before dropping back to play.
+constexpr int32_t kFailFlashTicks = 3 * kCtrlRate / 2;   // 1.5s
 
 } // namespace
 
@@ -200,9 +218,18 @@ private:
 	{
 		ReadSwitch();
 
-		// Pulse In 1 retriggers whatever is currently held. In KEYS this is how
-		// you play a repeated note; in DRUMS it re-fires the last sound.
-		if (PulseIn1RisingEdge()) Retrigger();
+		// Pulse In 1 does different jobs in the two modes.
+		//
+		// KEYS: retrigger the held note — this is how you play repeated notes.
+		// DRUMS: an external CLOCK, one edge per quarter note, which overrides
+		// the X knob for as long as it keeps arriving. A drum looper wants to
+		// follow the rest of the rack far more than it wants a second way to
+		// re-fire a hit.
+		if (PulseIn1RisingEdge())
+		{
+			if (boot_ == BootMode::Drums) loop_.ClockPulse();
+			else                          Retrigger();
+		}
 
 		if (ui_ == UiMode::Learn) { LearnTick(); return; }
 
@@ -266,15 +293,13 @@ private:
 		}
 		else
 		{
+			// Singles are shifts, not sounds — a retrigger while only a shift is
+			// held has nothing to re-fire. (See FireCombo.)
 			int8_t cur = levels_.Current();
-			if (cur >= 0)
+			if (cur >= kNumSingles)
 			{
 				drums_.Trigger(cur, KnobVal(Knob::Y));
-				// hitsThisHold_ must be bumped here as well as in FireCombo():
-				// it is what stops the hold-UP erase gesture from firing during
-				// an active overdub, and a tap-retriggered hit is every bit as
-				// much "the player is playing" as a new combo is.
-				if (recording_) { loop_.RecordHit(cur, 100); hitsThisHold_++; }
+				if (recording_) loop_.RecordHit(cur, 100);
 				gateTimer_ = kGateSamples;
 				ledFlash_[cur & 3] = kCtrlRate / 8;
 			}
@@ -285,6 +310,25 @@ private:
 	void __not_in_flash_func(FireCombo)(int8_t combo)
 	{
 		if (combo < 0 || combo >= kNumLevels) return;
+
+		// In DRUMS a single button is a SHIFT, not a sound.
+		//
+		// Percussion wants repeated hits on the same instrument, and that is
+		// exactly what a keyboard reading of the buttons cannot give you: to
+		// play AC twice you must pass through C, and if C is itself a sound
+		// then every repeat is interrupted by a spurious one. Making the four
+		// singles silent turns them into bank-selects that can be HELD for as
+		// long as you like — hold C and tap A, B or D, over and over.
+		//
+		// Suppressed here at the output rather than in the detector: KEYS still
+		// plays its singles, and the tracker's state (including the ghost) has
+		// to keep working identically in both modes.
+		if (boot_ == BootMode::Drums && combo < kNumSingles)
+		{
+			// Still worth showing on the LEDs — knowing which shift is held is
+			// the whole point of the gesture.
+			return;
+		}
 
 		if (boot_ == BootMode::Keys)
 		{
@@ -305,12 +349,18 @@ private:
 			if (root < 0)  root = 0;
 			if (root > 96) root = 96;
 
-			keys_.NoteOn(QuantizeNote(root, scaleIdx_, combo));
+			// The harmony is a few degrees up, run through the SAME scale — so
+			// it is a third that lands major or minor according to where in the
+			// scale you are, and it follows the Y knob for free rather than
+			// being a fixed interval bolted on.
+			keys_.NoteOn(QuantizeNote(root, scaleIdx_, combo),
+			             QuantizeNote(root, scaleIdx_,
+			                          combo + HarmonyDegreesFor(scaleIdx_)));
 		}
 		else
 		{
 			drums_.Trigger(combo, KnobVal(Knob::Y));
-			if (recording_) { loop_.RecordHit(combo, 100); hitsThisHold_++; }
+			if (recording_) loop_.RecordHit(combo, 100);
 		}
 
 		gateTimer_ = kGateSamples;
@@ -349,26 +399,11 @@ private:
 		djFilter_.SetKnob(filterOverride_ >= 0 ? filterOverride_
 		                                       : KnobVal(Knob::Main));
 
-		// Hold UP with no hits played to erase. "Hold record to erase" is a
-		// familiar tape idiom, and the no-hits condition stops an erase landing
-		// in the middle of an active overdub pass.
-		if (sw == Switch::Up)
-		{
-			if (hitsThisHold_ == 0 && clearHold_ < kClearHoldTicks) clearHold_++;
-			if (clearHold_ >= kClearHoldTicks && !clearFired_)
-			{
-				clearFired_ = true;
-				loop_.Clear();
-				filterOverride_ = -1;
-				clearFlash_ = kCtrlRate / 2;
-			}
-		}
-		else
-		{
-			clearHold_    = 0;
-			clearFired_   = false;
-			hitsThisHold_ = 0;
-		}
+		// Erasing the loop is done by entering calibration — see EnterLearn().
+		// The old gesture here was "hold the switch UP with no hits played",
+		// which cannot survive singles becoming SHIFTS: a shift is held for
+		// long stretches while playing, so "no hits played" is true far more
+		// often than the player means it to be.
 
 		if (recording_) loop_.RecordFilter(KnobVal(Knob::Main));
 
@@ -411,8 +446,21 @@ private:
 		ui_          = UiMode::Learn;
 		learnStep_   = 0;
 		learnPhase_  = LearnPhase::Waiting;
+		collisionsThisLearn_ = 0;
 		learnTimer_  = kLearnTimeoutTicks;
 		phaseTimer_  = 0;
+
+		// Entering calibration CLEARS the loop.
+		//
+		// This is the erase gesture, and it is the only one that makes sense
+		// here. Every switch position and every button is already spoken for
+		// while playing — in particular the four singles are SHIFTS that get
+		// held for long stretches, so "hold a button to erase" would fire
+		// constantly. Recalibrating is also the one moment where a stale loop
+		// is guaranteed to be meaningless: the levels are about to change, so
+		// the combos the pattern refers to may not even exist afterwards.
+		loop_.Clear();
+		filterOverride_ = -1;
 		// Entering on a HOLD means the release of that hold is still to come.
 		// holdFired_ is already true here, which swallows it — without that,
 		// the release would immediately read as the capture tap for step 0.
@@ -446,6 +494,7 @@ private:
 				// just per-step feedback and fall back to waiting for the next
 				// capture.
 				if (learnPhase_ == LearnPhase::Done
+				 || learnPhase_ == LearnPhase::Failed
 				 || learnPhase_ == LearnPhase::Aborted)
 				{
 					// Drop whatever combo the learn left "held", or the first
@@ -490,13 +539,34 @@ private:
 			if (d < 0) d = -d;
 			if (d < kCollisionMin) collided = true;
 		}
+		if (collided) collisionsThisLearn_++;
 
 		learnStep_++;
 		if (learnStep_ >= kNumLevels)
 		{
-			levels_.LearnFrom(captured_);
-			learnPhase_ = LearnPhase::Done;
-			phaseTimer_ = kDoneFlashTicks;
+			// Refuse a degenerate calibration rather than installing it.
+			// Ten captures that all landed on the same voltage means nothing
+			// was patched in (or the cable is dead) — accepting that would give
+			// a card that looks calibrated and plays one note forever.
+			int32_t lo = captured_[0], hi = captured_[0];
+			for (int i = 1; i < kNumLevels; i++)
+			{
+				if (captured_[i] < lo) lo = captured_[i];
+				if (captured_[i] > hi) hi = captured_[i];
+			}
+
+			if (hi - lo < kMinLearnSpan)
+			{
+				// Keep whatever calibration was there before.
+				learnPhase_ = LearnPhase::Failed;
+				phaseTimer_ = kFailFlashTicks;
+			}
+			else
+			{
+				levels_.LearnFrom(captured_);
+				learnPhase_ = LearnPhase::Done;
+				phaseTimer_ = kDoneFlashTicks;
+			}
 		}
 		else
 		{
@@ -531,11 +601,14 @@ private:
 			CVOutMillivolts(0, pitchMv);
 		}
 
-		int32_t lenMv = (env[kEnvLength] * 5000) >> 11;
-		if (lenMv != cvLastMv_[1])
+		// CV Out 2 is the HARMONY voice, a third above in the current scale —
+		// it used to be a third envelope, which turned out to be saying the
+		// same thing as the loudness one.
+		int32_t harmMv = keys_.HarmonyMillivolts(glide_);
+		if (harmMv != cvLastMv_[1])
 		{
-			cvLastMv_[1] = lenMv;
-			CVOutMillivolts(1, lenMv);
+			cvLastMv_[1] = harmMv;
+			CVOutMillivolts(1, harmMv);
 		}
 	}
 
@@ -564,21 +637,20 @@ private:
 
 		if (ui_ == UiMode::Learn) { LearnLeds(); return; }
 
-		if (clearFlash_ > 0)
-		{
-			clearFlash_--;
-			bool on = ((clearFlash_ >> 7) & 1) != 0;
-			for (int i = 0; i < kNumLeds; i++) LedOn(i, on);
-			return;
-		}
-
 		if (boot_ == BootMode::Keys && scaleShow_ > 0) { ScaleLeds(); return; }
 
 		// --- normal play ---
 		// LEDs 0-3 mirror the Four Voltages A B / C D buttons: the top 2x2 of
 		// the Computer's block sits in the same arrangement, which is the best
 		// affordance available and is used consistently everywhere on this card.
-		uint8_t mask = ComboLedMask(levels_.Current());
+		// Show the SOUNDING combo, not the tracker's raw current level.
+		//
+		// While a ghost is armed those differ: the CV has fallen back to one of
+		// the released pair's members, so Current() reports that single — but
+		// the pair is still what you can hear, and showing the single made the
+		// display contradict the sound on every release. Sounding() reports the
+		// pair for as long as the ghost holds.
+		uint8_t mask = ComboLedMask(levels_.Sounding());
 		for (int i = 0; i < 4; i++)
 		{
 			uint16_t b = (mask & (1u << i)) ? kLedDim : 0;
@@ -590,13 +662,15 @@ private:
 		{
 			LedBrightness(4, gateTimer_ > 0 ? kLedFull : 0);
 
-			// Calibration state, at a glance:
-			//   solid       learned cleanly
-			//   slow blink  learned, but some combos collided
-			//   off         never learned, running the default spread
-			if (!levels_.Learned())            LedOff(5);
-			else if (levels_.CollisionCount()) LedOn(5, ((uiTicks_ >> 9) & 1) != 0);
-			else                               LedOn(5, true);
+			// Calibrated or not — a steady state, nothing animated.
+			//
+			// This used to blink slowly whenever the learn had recorded any
+			// collision, as a standing reminder. In use that reads as a fault
+			// light and pulls the eye constantly, for information you were
+			// already given (and can act on) at the end of calibration. The
+			// warning now happens once, there; this just says whether the card
+			// is running a real calibration or its default guess.
+			LedOn(5, levels_.Learned());
 		}
 		else
 		{
@@ -624,11 +698,37 @@ private:
 
 		case LearnPhase::Done:
 		{
+			// A clean learn ramps all six up and fades. A learn that completed
+			// but recorded collisions ramps the same way with LEDs 4 and 5
+			// flashing over the top — so the warning is delivered ONCE, here,
+			// where you can act on it, instead of blinking at you forever
+			// afterwards while you play.
 			uint16_t b = static_cast<uint16_t>(
 				kLedFull - (phaseTimer_ * kLedFull) / kDoneFlashTicks);
-			for (int i = 0; i < kNumLeds; i++) LedBrightness(i, b);
+			for (int i = 0; i < 4; i++) LedBrightness(i, b);
+
+			if (collisionsThisLearn_)
+			{
+				bool f = ((phaseTimer_ >> 5) & 1) != 0;
+				LedBrightness(4, f ? kLedFull : 0);
+				LedBrightness(5, f ? kLedFull : 0);
+			}
+			else
+			{
+				LedBrightness(4, b);
+				LedBrightness(5, b);
+			}
 			return;
 		}
+
+		case LearnPhase::Failed:
+			// Nothing usable came in — almost always nothing patched into
+			// CV In 1. An urgent, unmistakably different pattern: the two
+			// COLUMNS alternating, fast. Not the gentle fade of a success and
+			// not the double blink of a deliberate abort.
+			for (int i = 0; i < kNumLeds; i++)
+				LedOn(i, (((phaseTimer_ >> 4) & 1) != 0) == ((i & 1) == 0));
+			return;
 
 		case LearnPhase::Aborted:
 			for (int i = 0; i < kNumLeds; i++)
@@ -716,6 +816,7 @@ private:
 	LearnPhase learnPhase_ = LearnPhase::Waiting;
 	int32_t    learnTimer_ = 0;
 	int32_t    phaseTimer_ = 0;
+	uint8_t    collisionsThisLearn_ = 0;
 
 	// keys
 	int      scaleIdx_  = 8;          // Ionian by default
@@ -725,10 +826,6 @@ private:
 
 	// drums
 	bool    recording_      = false;
-	int32_t clearHold_      = 0;
-	bool    clearFired_     = false;
-	int32_t clearFlash_     = 0;
-	int32_t hitsThisHold_   = 0;
 	int32_t filterOverride_ = -1;
 	int32_t mainLast_       = -9999;
 

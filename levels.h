@@ -130,8 +130,22 @@ public:
 	/// One control tick. `idx` receives the combo index on a non-None result.
 	LevelEvent Step(int32_t cvIn, int8_t &idx);
 
-	/// The combo currently sounding, or kComboNone before the first press.
+	/// The level the CV is currently sitting on. This is the tracker's own
+	/// state, and while a ghost is armed it is the RELEASED-ONTO single, not
+	/// the pair you can still hear. For display, use Sounding().
 	int8_t Current() const { return current_; }
+
+	/// The combo that is actually sounding.
+	///
+	/// Differs from Current() exactly while a ghost is armed: the CV has fallen
+	/// back onto one of a released pair's members, but the pair is what last
+	/// triggered and what is still audible. Showing Current() on the LEDs made
+	/// the panel contradict the sound every time a finger came off a pair.
+	int8_t Sounding() const
+	{
+		return (ghost_ != kComboNone && ghostFrom_ != kComboNone)
+		     ? ghostFrom_ : current_;
+	}
 
 	/// True once the CV has held still long enough to be trusted. The learn
 	/// machine uses this to reject a capture tap that arrived mid-transition.
@@ -164,6 +178,9 @@ private:
 	int32_t candTicks_ = 0;
 	int8_t  current_   = kComboNone;
 	int8_t  ghost_     = kComboNone;
+	/// The pair the ghost was released FROM — what is still sounding. Kept only
+	/// so the display can show it; the detection logic never reads it.
+	int8_t  ghostFrom_ = kComboNone;
 
 	/// At power-on the Four Voltages output already sits at whatever was last
 	/// pressed before power-off. Swallow exactly one settle so the card does

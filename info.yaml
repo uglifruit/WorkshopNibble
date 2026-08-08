@@ -1,9 +1,9 @@
 draft: false
 Name: NIBBLE
-short-description: Turns the Four Voltages module into a ten-note keyboard, or a lo-fi drum looper
+short-description: Turns the Four Voltages module into a ten-note keyboard, or a shift-and-tap drum looper
 Language: C++ (ComputerCard)
 Creator: Andy Jenkinson (uglifruit)
-Version: "1.0.0"
+Version: "1.1.0"
 Status: Released
 License: CC-BY-4.0
 repository: https://github.com/uglifruit/WorkshopNibble
@@ -17,7 +17,7 @@ contact:
 
 uf2:
   - path: UF2/nibble.uf2
-    name: NIBBLE 1.0.0
+    name: NIBBLE 1.1.0
 
 tags:
   - keyboard
@@ -31,8 +31,8 @@ tags:
 summary: |
   NIBBLE makes the Workshop System's FOUR VOLTAGES module playable. Patch one of
   its outputs into CV In 1, teach the card which voltage each button combination
-  produces, and the ten combinations become ten degrees of a scale - or ten lo-fi
-  drum sounds with a looper behind them.<br><br>
+  produces, and the ten combinations become ten degrees of a scale - or a lo-fi
+  drum kit with a looper behind it.<br><br>
 
   Four buttons is four bits is one nibble.<br><br>
 
@@ -58,10 +58,14 @@ summary: |
   re-learn, and the same buttons give you the same notes back. Twelve scales on
   Knob Y, ordered dark to bright.<br><br>
 
-  Hold the momentary switch at power-on for DRUMS: ten synthesised percussion
-  voices, a four-bar event looper whose overdub is lossless because it records
-  events rather than audio, and a DJ filter whose movements can be recorded into
-  the loop.
+  Hold the momentary switch at power-on for DRUMS. There a SINGLE button is a
+  shift rather than a sound and only pairs trigger, which is what lets you hold
+  one button and tap the others to repeat a hit as fast as you like - percussion
+  is mostly repeated hits on the same drum, and a keyboard reading of the buttons
+  cannot do that. Six voices under the fingers: kick on the top row, snare on the
+  bottom, hats on a column and a diagonal. A four-bar event looper whose overdub
+  is lossless because it records events rather than audio, clockable from Pulse
+  In 1, and a DJ filter whose movements can be recorded into the loop.
 
 panel:
   inputs:
@@ -74,22 +78,22 @@ panel:
       type: cv
       description: 1V/oct transpose of the whole keyboard, plus or minus two octaves, quantised to semitones. KEYS only, and only active when something is patched. Ignored in DRUMS.
     - id: PulseIn1
-      name: Retrigger
+      name: Retrigger / Clock*
       type: pulse
-      description: Re-fires the current note or drum sound without changing it. This is how you play repeated notes, and how you play a single button again after releasing a combination onto it.
+      description: KEYS - re-fires the current note without changing it, which is how you play repeated notes. DRUMS - an external clock at one pulse per beat, which takes over from Knob X for as long as it keeps arriving and hands back about three seconds after it stops. It nudges into phase rather than snapping, so locking to a clock never stutters the pattern.
     - id: PulseIn2
       name: Unused
       type: pulse
-      description: Not used in this version. Reserved for external clock in DRUMS.
+      description: Not used in this version.
   outputs:
     - id: CVOut1
       name: Pitch / Unused*
       type: cv
       description: KEYS - calibrated 1V/oct pitch, stepped, or glided when the switch is up. DRUMS - unused.
     - id: CVOut2
-      name: Length Env / Unused*
+      name: Harmony / Unused*
       type: cv
-      description: KEYS - a decay envelope for driving an external envelope's length or a gate length. DRUMS - unused.
+      description: KEYS - a second calibrated 1V/oct pitch, a third above the note you played and picked from the same scale, so it lands major or minor according to where in the scale you are. Patch it to a second oscillator with Pulse Out 1 as a shared gate and the ten buttons play two-part harmony. DRUMS - unused.
     - id: AudioOut1
       name: Filter Env / Drums*
       type: audio
@@ -111,13 +115,13 @@ controls:
   switch:
     up:
       name: Glide / Record*
-      description: KEYS - fast glide between notes instead of stepping. DRUMS - record and overdub into the loop; the loop keeps running, and because it stores events rather than audio, overdubbing never degrades what is already there. HOLD UP for two seconds, without playing anything, to erase the loop.
+      description: KEYS - fast glide between notes instead of stepping; the harmony voice glides with it. DRUMS - record and overdub into the loop; the loop keeps running, and because it stores events rather than audio, overdubbing never degrades what is already there.
     middle:
       name: Step / Play*
       description: KEYS - pitch steps straight to each new note. DRUMS - the loop plays, and you can play along without recording.
     down:
       name: Calibrate
-      description: HOLD for two seconds to start calibration, in either mode. Hold again during calibration to abandon it and keep the previous one.
+      description: HOLD for two seconds to start calibration, in either mode - and in DRUMS this also ERASES the loop, which is the erase gesture. Hold again during calibration to abandon it and keep the previous one. Calibration fails visibly, with the two LED columns alternating, if nothing usable is coming in on CV In 1.
     tap:
       name: Retrigger / Capture
       description: In play, re-fires the current note or sound. During calibration, captures the combination you are holding.
@@ -125,10 +129,10 @@ controls:
     -
       main:
         name: Macro / DJ Filter*
-        description: KEYS - one knob over length, filter and loudness together, so a louder hit is also a longer one. DRUMS - a DJ filter, low-pass to the left, high-pass to the right, with a generous bypass at centre you can find by feel. Its movements are recorded into the loop.
+        description: KEYS - how long the note lasts, from a click to over five seconds, across both envelopes at once. DRUMS - a DJ filter, low-pass to the left, high-pass to the right, with a generous bypass at centre you can find by feel. Its movements are recorded into the loop.
       x:
         name: Balance / Tempo*
-        description: KEYS - how the macro is shared between length, filter and loudness, morphing continuously between LONG, BALANCED and BRIGHT. DRUMS - tempo, 40 to 240 BPM. Changing it re-times the pattern rather than pitching it.
+        description: KEYS - how that length is split between the filter and the loudness, morphing continuously between DARK (the filter shuts well before the note fades - plucks), BALANCED, and BRIGHT (the filter outlasts the amplitude so the note blooms - pads). DRUMS - tempo, 40 to 240 BPM, ignored while an external clock is running on Pulse In 1. Changing it re-times the pattern rather than pitching it.
       y:
         name: Scale / Kit*
         description: "KEYS - one of twelve scales, ordered dark to bright from fully anticlockwise, shown on the LEDs as a bar while you turn it: Phrygian, Hirajoshi, Harmonic Minor, Natural Minor, Minor Pentatonic, m7 Arpeggio, Dorian, Major Pentatonic, Ionian (Major), Maj7 Arpeggio, Whole Tone, Chromatic. Because the ten combinations are ten DEGREES, the scale also sets the range - a four-note arpeggio spreads them over more than two octaves while Chromatic packs them into three quarters of one. DRUMS - the character of the whole kit at once, from lower and longer to higher and shorter."
@@ -144,7 +148,7 @@ controls:
           description: KEYS - flares on every note. DRUMS - pulses on the beat. During calibration it marks the four single-button steps.
         - id: LED5
           name: Calibration / Record
-          description: KEYS - solid when calibrated cleanly, a slow blink when calibrated but two combinations collided, off when running the uncalibrated default. DRUMS - lit while recording. During calibration it marks the six two-button steps.
+          description: KEYS - solid when running a real calibration, off when running the uncalibrated default. DRUMS - lit while recording. During calibration it marks the six two-button steps. Collisions are reported once at the end of a calibration rather than blinking at you while you play.
 
 host:
   notes: |

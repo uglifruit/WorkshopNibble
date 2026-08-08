@@ -89,8 +89,9 @@ void LevelTracker::LearnFrom(const int32_t *levels)
 
 void LevelTracker::ResetHeld()
 {
-	current_ = kComboNone;
-	ghost_   = kComboNone;
+	current_   = kComboNone;
+	ghost_     = kComboNone;
+	ghostFrom_ = kComboNone;
 	// The settle plateau is left running: the CV has not moved, so re-deriving
 	// it from scratch would only add a spurious 12ms of latency to the first
 	// press after a learn.
@@ -178,15 +179,17 @@ LevelEvent __not_in_flash_func(LevelTracker::Step)(int32_t cvIn, int8_t &idx)
 	// Clearing the ghost happens FIRST and unconditionally. That single
 	// ordering decision IS the rule: it is what makes "leaving a ghost level
 	// re-arms it as a genuine note" true without any extra bookkeeping.
-	ghost_ = kComboNone;
+	ghost_     = kComboNone;
+	ghostFrom_ = kComboNone;
 
 	// Are we leaving a PAIR and arriving at one of ITS OWN two members? That is
 	// a release falling back to residue, not a press.
 	if (current_ >= kNumSingles && IsMemberOf(m, current_))
 	{
-		ghost_   = m;
-		current_ = m;
-		idx      = m;
+		ghost_     = m;
+		ghostFrom_ = current_;   // remembered for the display only
+		current_   = m;
+		idx        = m;
 		return LevelEvent::GhostArmed;
 	}
 

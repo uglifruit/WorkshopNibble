@@ -34,6 +34,11 @@ uint16_t Looper::FireTick(const LoopEvent &ev)
 
 void Looper::SetTempo(int32_t xKnob)
 {
+	// An external clock owns the tempo while it is running. Track the knob
+	// position anyway, so that when the clock stops the knob does not have to
+	// be wiggled before it takes effect again.
+	if (Clocked()) { lastX_ = xKnob; return; }
+
 	// Only recompute when the knob has actually moved. See the header.
 	if (lastX_ >= 0 && (xKnob - lastX_ < kKnobMoveThresh)
 	                && (lastX_ - xKnob < kKnobMoveThresh))
@@ -48,8 +53,46 @@ void Looper::SetTempo(int32_t xKnob)
 		/ (60 * kCtrlRate));
 }
 
+void Looper::ClockPulse()
+{
+	// The first edge only starts the stopwatch; an interval needs two.
+	if (sinceClock_ > 0 && sinceClock_ < kCtrlRate * 4)
+	{
+		clockInterval_ = sinceClock_;
+
+		// One edge is a quarter note, so kTicksPerBeat ticks must elapse in
+		// clockInterval_ control steps.
+		tickInc_ = static_cast<int32_t>(
+			(static_cast<int64_t>(kTicksPerBeat) * kQ16One) / clockInterval_);
+
+		// Re-align to the nearest beat rather than snapping to it. Jumping the
+		// playhead on every edge would stutter the pattern; nudging it keeps
+		// the loop phase-locked while staying inaudible.
+		int32_t offset = playHead_ % kTicksPerBeat;
+		if (offset != 0)
+		{
+			if (offset > kTicksPerBeat / 2) offset -= kTicksPerBeat;
+			// Pull back at most one tick per edge — enough to hold sync against
+			// drift, small enough never to be heard as a skip.
+			if (offset > 0)      playHead_--;
+			else if (offset < 0) playHead_++;
+			playHead_ = static_cast<uint16_t>((playHead_ + kLoopTicks) % kLoopTicks);
+		}
+	}
+
+	sinceClock_   = 0;
+	clockTimeout_ = kCtrlRate * 3;   // hand back to the knob ~3s after it stops
+}
+
 bool Looper::Advance()
 {
+	// Clock housekeeping FIRST and unconditionally: these are wall-clock
+	// timers, not musical ones, and putting them after the early-outs below
+	// would freeze them exactly when the tempo is zero or between ticks — so a
+	// stopped external clock would never time out and hand control back.
+	if (sinceClock_ < kCtrlRate * 8) sinceClock_++;
+	if (clockTimeout_ > 0) clockTimeout_--;
+
 	if (tickInc_ <= 0) return false;
 
 	phase_ += tickInc_;
@@ -102,6 +145,7 @@ void Looper::Insert(const LoopEvent &ev)
 	}
 	events_[i] = ev;
 	count_++;
+	if (ev.what == kFilterEvent) filterCount_++;
 
 	// The new event may sit before the cursor, which would make the cursor
 	// point at the wrong place for the rest of this pass. Nudging it keeps the
@@ -112,6 +156,18 @@ void Looper::Insert(const LoopEvent &ev)
 void Looper::RecordHit(int8_t combo, uint8_t velocity)
 {
 	if (combo < 0 || combo >= kNumLevels) return;
+
+	// If the array is full but automation is hogging it, evict the oldest
+	// automation event to make room. A drum hit the player just performed
+	// always matters more than a knob position from three passes ago — and
+	// silently dropping it is what made the looper feel like it was
+	// overwriting things.
+	if (count_ >= kMaxEvents && filterCount_ > 0)
+	{
+		for (int i = 0; i < count_; i++)
+			if (events_[i].what == kFilterEvent) { Remove(i); break; }
+	}
+
 	LoopEvent ev;
 	ev.tick  = playHead_;
 	ev.what  = static_cast<uint8_t>(combo);
@@ -129,11 +185,42 @@ void Looper::RecordFilter(int32_t knob)
 		return;
 	lastFilter_ = knob;
 
+	// Automation REPLACES itself rather than accumulating. A knob pass on top of
+	// an earlier one should read as "I redid that sweep", not as two sweeps
+	// fighting on the same tick — and without this, every pass adds another
+	// ~96 events until the buffer is full and drum hits start being dropped.
+	//
+	// Drop any existing automation already sitting on this tick first.
+	for (int i = 0; i < count_; )
+	{
+		if (events_[i].what == kFilterEvent && FireTick(events_[i]) == playHead_)
+			Remove(i);
+		else
+			i++;
+	}
+
+	if (filterCount_ >= kMaxFilterEvents) return;
+
 	LoopEvent ev;
 	ev.tick  = playHead_;
 	ev.what  = kFilterEvent;
 	ev.value = static_cast<uint8_t>(knob >> 4);   // 0..4095 -> 0..255
 	Insert(ev);
+}
+
+/// Remove the event at `i`, keeping the array sorted and the cursor honest.
+void Looper::Remove(int i)
+{
+	if (i < 0 || i >= count_) return;
+	if (events_[i].what == kFilterEvent && filterCount_ > 0) filterCount_--;
+
+	for (int j = i; j + 1 < count_; j++) events_[j] = events_[j + 1];
+	count_--;
+
+	// Keep "cursor_ is the next event to fire" true. Removing something the
+	// cursor has already passed must pull the cursor back with it, or the rest
+	// of this pass fires the wrong events.
+	if (static_cast<uint16_t>(i) < cursor_ && cursor_ > 0) cursor_--;
 }
 
 // ---------------------------------------------------------------------------

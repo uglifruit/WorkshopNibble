@@ -21,6 +21,7 @@ BEATS_PER_LOOP = 16
 LOOP_TICKS = TICKS_PER_BEAT * BEATS_PER_LOOP      # 768
 QUANT_TICKS = TICKS_PER_BEAT // 4                 # 12
 MAX_EVENTS = 512
+MAX_FILTER_EVENTS = 128
 FILTER_EVENT = 0x80
 CTRL_RATE = 3000
 BPM_MIN, BPM_MAX = 40, 240
@@ -60,6 +61,7 @@ class Looper:
         self.phase = 0
         self.tick_inc = 0
         self.last_x = -9999
+        self.filter_count = 0
 
     def set_tempo_bpm(self, bpm):
         self.tick_inc = (bpm * TICKS_PER_BEAT * Q16) // (60 * CTRL_RATE)
@@ -87,10 +89,40 @@ class Looper:
             self.events[i] = self.events[i - 1]
             i -= 1
         self.events[i] = ev
+        if ev[1] == FILTER_EVENT:
+            self.filter_count += 1
         if i < self.cursor:
             self.cursor += 1
 
+    def remove(self, i):
+        if i < 0 or i >= len(self.events):
+            return
+        if self.events[i][1] == FILTER_EVENT and self.filter_count > 0:
+            self.filter_count -= 1
+        del self.events[i]
+        if i < self.cursor and self.cursor > 0:
+            self.cursor -= 1
+
+    def record_filter_at(self, value):
+        """Automation REPLACES itself on the same tick rather than piling up."""
+        i = 0
+        while i < len(self.events):
+            if (self.events[i][1] == FILTER_EVENT
+                    and fire_tick(self.events[i]) == self.play_head):
+                self.remove(i)
+            else:
+                i += 1
+        if self.filter_count >= MAX_FILTER_EVENTS:
+            return
+        self.insert([self.play_head, FILTER_EVENT, value])
+
     def record_hit(self, combo, vel=100):
+        # A hit the player just performed outranks stale automation.
+        if len(self.events) >= MAX_EVENTS and self.filter_count > 0:
+            for i, e in enumerate(self.events):
+                if e[1] == FILTER_EVENT:
+                    self.remove(i)
+                    break
         self.insert([self.play_head, combo, vel])
 
     def fire(self):
@@ -269,6 +301,61 @@ def test_events_stay_sorted():
     check("events remain sorted by FIRE time", ticks, sorted(ticks))
 
 
+def test_automation_cannot_starve_hits():
+    """THE OVERDUB BUG.
+
+    Filter automation and drum hits share one array. A continuous knob sweep
+    emits an event every kFilterSampleTicks - about 96 per pass - and the first
+    version let those ACCUMULATE without limit. After roughly five passes of
+    idle twiddling the array was full, Insert() started silently dropping
+    everything, and NEW DRUM HITS STOPPED BEING RECORDED.
+
+    From the player's side that is indistinguishable from the looper
+    overwriting what they just played, which is exactly how it was reported.
+
+    Two fixes, both checked here: automation replaces itself on a tick rather
+    than piling up, and a hit evicts stale automation if the array is full.
+    """
+    lp = Looper()
+    lp.set_tempo_bpm(120)
+
+    # Twenty passes of dense knob movement.
+    for _pass in range(20):
+        for tick in range(0, LOOP_TICKS, 8):
+            lp.play_head = tick
+            lp.record_filter_at((tick + _pass) & 0xFF)
+
+    check("automation is capped, not unbounded",
+          lp.filter_count <= MAX_FILTER_EVENTS, True)
+    print("          after 20 passes of sweeping: %d automation events"
+          % lp.filter_count)
+
+    # Now play some hits. Every one must be recorded.
+    before = len([e for e in lp.events if e[1] != FILTER_EVENT])
+    for i in range(32):
+        lp.play_head = i * 20
+        lp.record_hit(i % 10)
+    after = len([e for e in lp.events if e[1] != FILTER_EVENT])
+
+    check("all 32 hits recorded despite heavy automation",
+          after - before, 32)
+
+
+def test_automation_replaces_on_same_tick():
+    """A second knob pass over the same spot should read as 'I redid that
+    sweep', not as two sweeps fighting on one tick."""
+    lp = Looper()
+    lp.set_tempo_bpm(120)
+    lp.play_head = 96
+    for v in (10, 20, 30, 40):
+        lp.record_filter_at(v)
+
+    at96 = [e for e in lp.events
+            if e[1] == FILTER_EVENT and fire_tick(e) == 96]
+    check("automation on one tick collapses to the latest", len(at96), 1)
+    check("...and it is the most recent value", at96[0][2], 40)
+
+
 def test_clear_empties():
     lp = Looper()
     lp.set_tempo_bpm(120)
@@ -291,6 +378,8 @@ def main():
     test_tempo_retimes_not_drops()
     test_tempo_affects_duration()
     test_full_buffer_drops_not_wraps()
+    test_automation_cannot_starve_hits()
+    test_automation_replaces_on_same_tick()
     test_events_stay_sorted()
     test_clear_empties()
     print()

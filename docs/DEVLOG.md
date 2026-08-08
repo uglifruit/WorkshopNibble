@@ -1,5 +1,100 @@
 # NIBBLE devlog
 
+## v1.1.0 — after the first hardware session
+
+Calibration and triggering both worked first time on real hardware, which is the
+part that was genuinely uncertain. Everything below is what playing it revealed.
+
+### Singles become SHIFTS in DRUMS
+
+The biggest change, and it came from a rationale worth recording: **percussion
+is mostly repeated hits on the same drum**, and a keyboard reading of the
+buttons cannot do that. To play AC twice you have to pass back through C — and
+if C is itself a sound, every repeat is interrupted by a spurious one.
+
+Making the four singles silent turns them into bank-selects that can be *held*
+indefinitely. Hold C, tap A, tap A, tap A: three clean hits.
+
+Two consequences that were not obvious until it was written:
+
+- **The kit had to be remapped.** With singles silent, the six pairs are the
+  entire playable kit — and they were holding a rim, three toms, a clap and a
+  cowbell while kick, snare and both hats sat on the now-unreachable singles.
+  Six sounds you cannot build a beat from. Kick is now the top row, snare the
+  bottom row, hats a column and a diagonal, so every shift gives three usable
+  voices under one hand.
+- **The erase gesture had to move.** It was "hold the switch UP with no hits
+  played", which cannot survive shifts being held for long stretches — "no hits
+  played" becomes true far more often than the player means. Erase is now
+  re-entering calibration, which is the one moment a stale loop is *guaranteed*
+  meaningless: the levels are about to change, so the combos the pattern refers
+  to may not exist afterwards.
+
+### The envelopes could not be made long — a real bug
+
+Reported as "too short"; the cause was worse than tuning. `e -= (e >> shift) + 1`
+reaches zero because of the `+1`, but that same `+1` dominates as soon as
+`e >> shift` rounds to zero — which for a peak of 2047 happens around shift 11.
+**Every setting above that decayed in the same 43 ms.** The whole top half of the
+macro knob did nothing at all.
+
+Running the accumulator 8 bits higher (`kEnvFrac`) keeps the shift meaningful:
+the range is now ~25 ms to 5.7 s.
+
+Two related fixes while in there. The peak no longer scales with the macro —
+scaling both meant a short setting was also a quiet one, so there was no way to
+get a short *loud* note, which is most percussive playing. And the LENGTH
+envelope is gone: on the panel it was indistinguishable from LOUDNESS, both
+being "how long does this note last", so it cost an output to say nothing new.
+
+### CV Out 2 is a harmony voice now
+
+The freed output carries a second 1V/oct pitch, two scale degrees above the note
+played, resolved through the *same* scale — so it lands major or minor according
+to position, and follows the Y knob for nothing.
+
+One wrinkle found by checking rather than by ear: two degrees is a third in
+anything diatonic, but in **Chromatic** it is a whole tone, which reads as a
+detune rather than a harmony. Chromatic gets four degrees instead. The arpeggio
+scales give fifths at two degrees, which is correct and left alone — on a chord
+tone, the "third up" *is* a fifth.
+
+### Overdub "overwriting" was automation starvation
+
+Reported as the looper overwriting previously recorded hits. It never overwrote
+anything: filter automation and drum hits share one 512-event array, a
+continuous knob sweep emits ~96 events per pass with **no upper bound**, and
+after about five passes of idle twiddling the array was full — at which point
+`Insert()` silently dropped everything and new hits stopped being recorded.
+
+Fixed three ways: automation is capped at 128 slots, it *replaces* itself on a
+tick rather than accumulating, and a hit evicts the oldest automation if the
+array is full. A performed hit always outranks a knob position from three passes
+ago. `tools/loopsim.py` now asserts all of it.
+
+### Smaller things
+
+- **LED 5 stopped blinking.** It meant "calibrated, but two combos collided" —
+  correct information, delivered as a standing fault light that pulled the eye
+  while playing. The warning now happens once, at the end of the calibration,
+  where it can actually be acted on.
+- **The LEDs showed the ghost, not the sound.** While a ghost is armed the
+  tracker's `Current()` is the released-onto single, but the *pair* is what you
+  can still hear — so the display contradicted the sound on every release.
+  `Sounding()` reports the pair for as long as the ghost holds.
+- **Calibration can now fail.** Ten captures landing on the same voltage means
+  nothing was patched in; the card used to accept that and then play one note
+  forever, looking calibrated and behaving broken. It now rejects a span under
+  ~1.2 V, keeps the previous calibration, and says so with the two LED columns
+  alternating — deliberately unlike the fade of success or the double blink of
+  an abort.
+- **Pulse In 1 is an external clock in DRUMS.** One pulse per beat, overriding
+  the X knob while it runs and handing back ~3 s after it stops. It nudges into
+  phase rather than snapping, so locking up never stutters the pattern. Verified
+  to track within 0.05 BPM across 60–240.
+
+---
+
 ## v1.0.0 — first build
 
 ### What the card is for

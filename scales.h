@@ -58,6 +58,20 @@ constexpr Scale kScales[kNumScales] = {
 	{12, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}},    // 11 Chromatic     (fully CW)
 };
 
+/// How many DEGREES above a note its harmony sits, for each scale.
+///
+/// Two degrees is a third in anything diatonic, and that is the default. The
+/// exception is Chromatic, where two degrees is a whole tone — an interval that
+/// reads as a detune rather than a harmony. Chromatic gets four degrees (a
+/// major third) so the harmony output stays musical across the whole knob.
+///
+/// The arpeggio scales give fifths rather than thirds at two degrees, which is
+/// correct and left alone: on a chord tone the "third up" IS a fifth.
+static inline int HarmonyDegreesFor(int scaleIdx)
+{
+	return (scaleIdx == kNumScales - 1) ? 4 : 2;   // Chromatic is the last entry
+}
+
 /// Degree -> MIDI note. Degrees past the end of the scale wrap into the next
 /// octave, so ten combos span between ~2.5 octaves (a 4-note arpeggio) and
 /// under one (chromatic). Both extremes are musically useful and the difference
