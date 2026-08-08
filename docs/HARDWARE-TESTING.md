@@ -13,6 +13,11 @@ hits.
 tuning oscillators together — and was silently clipping the top of wide scales.
 LEDs 4 and 5 lit in KEYS for no useful reason. Wanted a click track.
 
+**Session 5 found:** the crash was ~14x the energy of a kick (voices all fired
+at the same peak, so a long decay was simply louder). The loop stored key
+combinations rather than sounds. The filter pickup could be yanked away by ADC
+dither. Wanted a gate on the otherwise-idle CV Out 2.
+
 **Session 4 asked for** twelve ordered voices instead of six, which needed the
 press order recovering from the approach direction, and better kicks, snares and
 a crash — which turned up the same envelope-capping bug the KEYS side had.
@@ -223,6 +228,8 @@ Patch it at an oscillator: A is the root, B a tone below, C the fifth, D the
 octave, all between 0.83 V and 2 V. They still make no drum sound. Holding a
 shift should sustain its bass note while you play the kit over it.
 
+- **Levels**: play the crash against the kick. It should be a big sound but must
+  not bury the kit — it was 14x a kick's energy before, now about 2x.
 - **Y** should shift the kit lower/longer ↔ higher/shorter.
 - **Main** is the DJ filter: low-pass left, **bypass at centre**, high-pass
   right. Centre should be findable by feel and audibly do nothing.
@@ -242,6 +249,11 @@ shift should sustain its bass note while you play the kit over it.
 - Move **Main** while recording; the sweep should play back with the pattern,
   and a second pass over the same spot should REPLACE the first rather than
   fight it.
+- **Leave the Main knob alone** while a recorded sweep plays. Playback must keep
+  the filter — if it hands back to a stationary knob, the pickup smoothing is
+  not doing its job.
+- **Patterns should replay the same SOUND you played**, regardless of which
+  shift you happened to use. The loop stores voices now, not gestures.
 - Turn **X** — the pattern should speed up or slow down, *not* change pitch.
 - **Patch a clock into Pulse In 1** (one pulse per beat). The loop should follow
   it, X should stop having any effect, and it should hand back to the knob about

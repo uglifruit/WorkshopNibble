@@ -1,5 +1,60 @@
 # NIBBLE devlog
 
+## v1.5.0 — levels, and the loop stores sounds
+
+### The crash was not slightly hot
+
+Reported as "far far far too loud". Measured, it carried **13.6× the total
+energy of a kick** and 433× a closed hat.
+
+The cause was structural rather than a bad number: every voice fires at the same
+peak, and the ear integrates over roughly a tenth of a second, so a 1.9-second
+decay simply *is* more sound than a 230 ms one. Peak amplitude stops being a
+proxy for loudness once decay times differ by two orders of magnitude.
+
+Each voice now carries its own Q8 `level`, set by energy-equalising against the
+kick and then trimmed so cymbals still read as cymbals. The crash is 40/256,
+which brings it to 2.1× a kick — still a big sound, no longer burying the kit.
+Its peak is 317 against the kick's 2045, which is what a long wash should look
+like.
+
+### The loop stores voices, not gestures
+
+Previously an event recorded the *combination*, and replay re-derived a sound
+from it — which meant a recorded hit could come back as a different voice from
+the one played, because the shift that selected it was long gone.
+
+The kit is now a flat list of twelve voices with a separate gesture→voice map,
+and the loop stores the voice index. A pattern is a list of sounds; how each one
+was played is a property of the performance. It also means re-arranging the
+gesture map later cannot silently change what an existing loop plays.
+
+### Filter pickup needed two fixes, not one
+
+The knob reclaims the filter from recorded automation on a real move. The first
+version compared against a reference that was **updated every time the threshold
+was crossed**, so ADC dither could ratchet: each small step moved the reference,
+the knob "travelled" without being touched, and playback was yanked away
+mid-loop.
+
+Latching the reference once, on the handover, fixes the ratchet — but modelling
+it showed that is not sufficient on its own. With noise comparable to the
+threshold, single samples still cross it: at ±70 counts a still knob handed back
+17,000 times per 200k ticks even with the reference held.
+
+So the comparison is against a **smoothed** reading. That gives zero spurious
+hand-backs up to ±100 counts of dither, while a genuine 400-count move still
+crosses in about a millisecond.
+
+### CV Out 2 gates the bassline
+
+Idle in DRUMS, so it now blips 5 V on each shift press. That lets the bass voice
+have its own envelope rather than sharing Pulse Out 1, which opens on every drum
+hit. Live presses only — a recorded pattern contains no shift presses, and
+firing the gate from playback would be claiming something that did not happen.
+
+---
+
 ## v1.4.0 — twelve voices out of six combinations
 
 ### Press order is not in the voltage, but it is recoverable

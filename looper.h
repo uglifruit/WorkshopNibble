@@ -17,6 +17,7 @@
 #pragma once
 #include <stdint.h>
 #include "nibble.h"
+#include "drums.h"
 
 namespace nib {
 
@@ -25,7 +26,7 @@ namespace nib {
 struct LoopEvent
 {
 	uint16_t tick;    ///< 0..kLoopTicks-1, RAW (unquantised)
-	uint8_t  what;    ///< 0..9 = drum combo, kFilterEvent = filter automation
+	uint8_t  what;    ///< 0..kNumVoices-1 = a drum VOICE, kFilterEvent = filter
 	uint8_t  value;   ///< drum: velocity. filter: knob >> 4.
 };
 
@@ -96,9 +97,17 @@ public:
 	/// True while an external clock is driving the tempo.
 	bool Clocked() const { return clockTimeout_ > 0; }
 
-	/// Record a drum hit at the current position. Ignored when the loop is
-	/// full — dropping the 513th event is better than wrapping over the first.
-	void RecordHit(int8_t combo, uint8_t velocity);
+	/// Record a drum hit at the current position, by VOICE index.
+	///
+	/// Deliberately not by gesture: a pattern is a list of sounds, and how each
+	/// was played belongs to the performance. Storing the gesture also meant a
+	/// replayed hit had to re-derive its sound from a combination with no shift
+	/// attached, and re-arranging the gesture map would silently change what an
+	/// old loop played.
+	///
+	/// Ignored when the loop is full — dropping the 513th event is better than
+	/// wrapping over the first.
+	void RecordHit(int8_t voice, uint8_t velocity);
 
 	/// Record a filter-knob position, if it has moved enough to be worth it.
 	void RecordFilter(int32_t knob);

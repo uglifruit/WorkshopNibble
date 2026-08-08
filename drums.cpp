@@ -14,73 +14,45 @@ namespace nib {
 // the two sounds a pattern is mostly made of need one finger each; the toms sit
 // on pairs sharing a finger, so hold-A-and-tap gives a tom run.
 
-// The TWELVE ordered voices, indexed [shift][tap].
-//
-// Diagonal entries (shift == tap) are never reached — you cannot hold a button
-// and tap the same one — and are left as zeroes.
-//
-// The layout is chosen for the HAND, not for tidiness. Holding C with a right
-// thumb leaves A, B and D under the fingers, so that shift carries the three
-// sounds a beat is actually made of: closed hat, snare, kick. Holding D gives
-// the tom/syn-drum row for fills. A and B carry the colour: cowbell, hats, and
-// the crash.
-const DrumSpec kOrdered[kNumSingles][kNumSingles] = {
-	// ---- HOLD A ----
-	{
-		{},                                          // A+A  (not a gesture)
-		{ 1100, 1100,  7,  0,    0, 0, 0 },          // A+B  cowbell
-		{ 1300, 1300,  5,  5,  256, 0, 1 },          // A+C  hi-hat, metallic alt
-		{ 1300, 1300, 11, 11,  256, 0, 1 },          // A+D  open hi-hat
-	},
-	// ---- HOLD B ----
-	{
-		{ 1700, 1700, 15, 15,  256, 0, 1 },          // B+A  CRASH (long, metal)
-		{},                                          // B+B
-		{  180,    4, 12,  0,    0, 3, 0 },          // B+C  kick, deep alt
-		{  330,   30,  8, 10,  200, 1, 0 },          // B+D  snare, snappy alt
-	},
-	// ---- HOLD C ----  the workhorse row, under a right hand
-	{
-		{  900,  900,  6,  6,  256, 0, 0 },          // C+A  closed hat
-		{  400,   24,  9,  7,  140, 1, 0 },          // C+B  snare
-		{},                                          // C+C  (not a gesture)
-		{  220,    4, 11,  0,    0, 2, 0 },          // C+D  kick
-	},
-	// ---- HOLD D ----  toms and syn drums, for fills
-	{
-		{  600,   60,  9,  0,    0, 1, 0 },          // D+A  "pew" tom 1
-		{  420,  140, 11,  8,   20, 1, 0 },          // D+B  syn tom 2
-		{  520,  110, 10,  6,   40, 1, 0 },          // D+C  syn drum 3
-		{},                                          // D+D  (not a gesture)
-	},
+/// The kit as a flat list of VOICES, which is what the looper records.
+///
+/// A recorded event stores "kick", not "C held while D was tapped". That is the
+/// right level of abstraction: how a hit was produced is a property of the
+/// performance, not of the pattern, and storing the gesture meant a replayed
+/// loop had to re-derive a sound from a combination that no longer had a shift
+/// attached to it. It also means a future edit to the mapping does not silently
+/// change what an existing loop plays.
+///
+/// Index order is the display order, and matches kVoiceName below.
+const DrumSpec kVoices[kNumVoices] = {
+	// pitch0 floor decay noise  mix  sweep metal level
+	{  220,    4,    11,    0,     0,   2,    0,  256 },   // 0  kick
+	{  180,    4,    12,    0,     0,   3,    0,  170 },   // 1  kick deep
+	{  400,   24,     9,    7,   140,   1,    0,  256 },   // 2  snare
+	{  330,   30,     8,   10,   200,   1,    0,  230 },   // 3  snare snappy
+	{  900,  900,     6,    6,   256,   0,    0,  220 },   // 4  closed hat
+	{ 1300, 1300,     5,    5,   256,   0,    1,  200 },   // 5  hi-hat metallic
+	{ 1300, 1300,    11,   11,   256,   0,    1,  110 },   // 6  open hi-hat
+	{ 1700, 1700,    15,   15,   256,   0,    1,   40 },   // 7  crash
+	{ 1100, 1100,     7,    0,     0,   0,    0,  230 },   // 8  cowbell
+	{  600,   60,     9,    0,     0,   1,    0,  230 },   // 9  tom 1 "pew"
+	{  420,  140,    11,    8,    20,   1,    0,  180 },   // 10 syn tom 2
+	{  520,  110,    10,    6,    40,   1,    0,  200 },   // 11 syn drum 3
 };
 
-// Both indices are plain button numbers 0..3, so this is a direct lookup — the
-// diagonal entries are the unreachable "hold and tap the same button" slots and
-// are never read.
-const DrumSpec *OrderedVoice(int8_t shift, int8_t tap)
-{
-	if (shift < 0 || shift >= kNumSingles) return nullptr;
-	if (tap   < 0 || tap   >= kNumSingles) return nullptr;
-	if (shift == tap) return nullptr;
-	return &kOrdered[shift][tap];
-}
-
-// The old combination-indexed kit, still used by the LOOPER: recorded events
-// store a combo, and a bare single fired from a loop should make some sound
-// rather than none.
-const DrumSpec kKit[kNumLevels] = {
-	// pitch0 floor  decay noise  mix  sweep metal
-	{  300,   90,     11,    8,    20,   1,   0 },   // A  low tom
-	{  420,  140,     11,    8,    20,   1,   0 },   // B  mid tom
-	{  560,  200,     10,    8,    20,   1,   0 },   // C  high tom
-	{ 1100, 1100,      7,    0,     0,   0,   0 },   // D  cowbell
-	{  220,    4,     12,    0,     0,   2,   0 },   // AB kick
-	{  900,  900,      6,    6,   256,   0,   0 },   // AC closed hat
-	{  500,  500,      8,    8,   256,   0,   0 },   // AD clap
-	{  900,  900,     10,   10,   256,   0,   0 },   // BC open hat
-	{  700,  700,      5,    5,    40,   0,   0 },   // BD rim
-	{  400,   24,      9,    7,   140,   1,   0 },   // CD snare
+/// Which voice each (shift, tap) gesture plays. This is the ONLY place the
+/// gesture-to-sound mapping lives, so it can be rearranged without touching
+/// the voices or invalidating a recorded loop.
+///
+/// Chosen for the hand: a right thumb on C leaves closed hat, snare and kick
+/// under the fingers — a whole beat without moving. D is the tom row for fills;
+/// A and B carry the colour and the crash.
+const int8_t kGestureVoice[kNumSingles][kNumSingles] = {
+	//        tap A  tap B  tap C  tap D
+	/* A */ {   -1,     8,     5,     6 },   // cowbell, hi-hat alt, open hat
+	/* B */ {    7,    -1,     1,     3 },   // CRASH, kick deep, snare snappy
+	/* C */ {    4,     2,    -1,     0 },   // closed hat, snare, kick
+	/* D */ {    9,    10,    11,    -1 },   // tom 1, syn tom 2, syn drum 3
 };
 
 namespace {
@@ -133,6 +105,7 @@ void DrumVoice::Trigger(const DrumSpec &spec, int32_t pitchScaleQ16, int32_t dec
 	sweepRate_  = spec.sweepRate;
 	sweepCount_ = 0;
 	metal_      = spec.metal;
+	level_      = spec.level ? spec.level : kLevelFull;
 
 	// decayAdj shifts the whole kit shorter or longer. Clamped so the extremes
 	// stay musical rather than becoming a click or a drone.
@@ -208,38 +181,29 @@ int32_t __not_in_flash_func(DrumVoice::Step)(uint32_t &rng)
 	// --- mix body and noise by the voice's character ---
 	int32_t body = (osc   * (env_      >> kDrumEnvFrac)) >> 12;
 	int32_t nz   = (noise * (noiseEnv_ >> kDrumEnvFrac)) >> 12;
-	return ((body * (256 - noiseMix_)) + (nz * noiseMix_)) >> 8;
+	int32_t mixed = ((body * (256 - noiseMix_)) + (nz * noiseMix_)) >> 8;
+
+	// Per-voice level. Without it a long voice is simply louder, because every
+	// voice starts at the same peak and the ear integrates over time — the
+	// 1.9-second crash was delivering thirteen times a kick's energy.
+	return (mixed * level_) >> 8;
 }
 
 // ---------------------------------------------------------------------------
 // The kit
 // ---------------------------------------------------------------------------
 
-void DrumKit::TriggerOrdered(int8_t shift, int8_t tap, int32_t yKnob)
+void DrumKit::TriggerVoice(int8_t voice, int32_t yKnob)
 {
-	const DrumSpec *spec = OrderedVoice(shift, tap);
-	if (!spec) return;
-
-	int32_t y = knob_to_q16(yKnob);
-	int32_t pitchScale = 32768 + y;
-	int32_t decayAdj   = 3 - ((yKnob * 6) >> 12);
-
-	voice_[next_].Trigger(*spec, pitchScale, decayAdj);
-	next_ = static_cast<uint8_t>((next_ + 1) % kMaxVoices);
-}
-
-void DrumKit::Trigger(int8_t combo, int32_t yKnob)
-{
-	if (combo < 0 || combo >= kNumLevels) return;
+	if (voice < 0 || voice >= kNumVoices) return;
 
 	// Y sweeps the whole kit's character in one gesture: pitch from half to
-	// double, and decay from three shifts longer to three shorter. Centre
-	// detented so the stock kit is easy to find.
-	int32_t y = knob_to_q16(yKnob);                  // 0..65536
+	// double, and decay from three shifts longer to three shorter.
+	int32_t y = knob_to_q16(yKnob);
 	int32_t pitchScale = 32768 + y;                  // Q16 0.5 .. 1.5
 	int32_t decayAdj   = 3 - ((yKnob * 6) >> 12);    // +3 .. -3
 
-	voice_[next_].Trigger(kKit[combo], pitchScale, decayAdj);
+	voice_[next_].Trigger(kVoices[voice], pitchScale, decayAdj);
 	next_ = static_cast<uint8_t>((next_ + 1) % kMaxVoices);
 }
 

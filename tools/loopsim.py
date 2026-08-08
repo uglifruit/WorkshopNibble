@@ -20,6 +20,7 @@ TICKS_PER_BEAT = 48
 BEATS_PER_LOOP = 16
 LOOP_TICKS = TICKS_PER_BEAT * BEATS_PER_LOOP      # 768
 QUANT_TICKS = TICKS_PER_BEAT // 4                 # 12
+NUM_VOICES = 12          # the looper stores VOICES, not key combos
 MAX_EVENTS = 512
 MAX_FILTER_EVENTS = 128
 FILTER_EVENT = 0x80
@@ -116,14 +117,15 @@ class Looper:
             return
         self.insert([self.play_head, FILTER_EVENT, value])
 
-    def record_hit(self, combo, vel=100):
+    def record_hit(self, voice, vel=100):
         # A hit the player just performed outranks stale automation.
         if len(self.events) >= MAX_EVENTS and self.filter_count > 0:
             for i, e in enumerate(self.events):
                 if e[1] == FILTER_EVENT:
                     self.remove(i)
                     break
-        self.insert([self.play_head, combo, vel])
+        assert 0 <= voice < NUM_VOICES, "loop stores voices, not combos"
+        self.insert([self.play_head, voice, vel])
 
     def fire(self):
         out = []

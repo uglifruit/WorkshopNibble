@@ -159,9 +159,11 @@ void Looper::Insert(const LoopEvent &ev)
 	if (static_cast<uint16_t>(i) < cursor_) cursor_++;
 }
 
-void Looper::RecordHit(int8_t combo, uint8_t velocity)
+void Looper::RecordHit(int8_t voice, uint8_t velocity)
 {
-	if (combo < 0 || combo >= kNumLevels) return;
+	// Bounded by the VOICE count, not the combo count: an event stores which
+	// sound to make, never which buttons made it.
+	if (voice < 0 || voice >= kNumVoices) return;
 
 	// If the array is full but automation is hogging it, evict the oldest
 	// automation event to make room. A drum hit the player just performed
@@ -176,7 +178,7 @@ void Looper::RecordHit(int8_t combo, uint8_t velocity)
 
 	LoopEvent ev;
 	ev.tick  = playHead_;
-	ev.what  = static_cast<uint8_t>(combo);
+	ev.what  = static_cast<uint8_t>(voice);
 	ev.value = velocity;
 	Insert(ev);
 }

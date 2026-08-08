@@ -3,7 +3,7 @@ Name: NIBBLE
 short-description: Turns the Four Voltages module into a ten-note keyboard, or a shift-and-tap drum looper
 Language: C++ (ComputerCard)
 Creator: Andy Jenkinson (uglifruit)
-Version: "1.4.0"
+Version: "1.5.0"
 Status: Released
 License: CC-BY-4.0
 repository: https://github.com/uglifruit/WorkshopNibble
@@ -17,7 +17,7 @@ contact:
 
 uf2:
   - path: UF2/nibble.uf2
-    name: NIBBLE 1.4.0
+    name: NIBBLE 1.5.0
 
 tags:
   - keyboard
@@ -100,9 +100,9 @@ panel:
       type: cv
       description: "KEYS - calibrated 1V/oct pitch, stepped, or glided when the switch is up. The root of the scale is 0V, so an oscillator at its own zero is already in tune. DRUMS - a four-note bassline played by the single buttons, which make no drum sound and so had a spare output: A is the root, B a tone below, C the fifth, D the octave. No combos and no scale - once a pattern is looping you can put a simple line under it with the same four buttons."
     - id: CVOut2
-      name: Harmony / Unused*
+      name: Harmony / Bass Gate*
       type: cv
-      description: KEYS - a second calibrated 1V/oct pitch, a third above the note you played and picked from the same scale, so it lands major or minor according to where in the scale you are. Patch it to a second oscillator with Pulse Out 1 as a shared gate and the ten buttons play two-part harmony. DRUMS - unused.
+      description: KEYS - a second calibrated 1V/oct pitch, a third above the note you played and picked from the same scale, so it lands major or minor according to where in the scale you are. Patch it to a second oscillator with Pulse Out 1 as a shared gate and the ten buttons play two-part harmony. DRUMS - a 5V gate whenever a single (shift) button is pressed live, so the bassline on CV Out 1 can have its own envelope without opening on every drum hit. Live presses only - a recorded pattern contains no shift presses.
     - id: AudioOut1
       name: Filter Env / Drums*
       type: audio

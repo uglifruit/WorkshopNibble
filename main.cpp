@@ -25,9 +25,9 @@
 //   Switch hold 2s = calibrate          Switch hold 2s = calibrate + clear loop
 //
 //   CV Out 1     1V/oct pitch                  CV Out 1     1V/oct bassline
-//   CV Out 2     1V/oct harmony, a third       Audio Out 1  drum bus
-//   Audio Out 1  FILTER envelope               Audio Out 2  drum bus
-//   Audio Out 2  LOUDNESS envelope
+//   CV Out 2     1V/oct harmony, a third       CV Out 2     gate on a shift press
+//   Audio Out 1  FILTER envelope               Audio Out 1  drum bus
+//   Audio Out 2  LOUDNESS envelope             Audio Out 2  drum bus
 //   Pulse Out 1  gate on every note            Pulse Out 1  gate on hits + bass
 //   Pulse Out 2  (unused)                      Pulse Out 2  click, one per beat
 //
@@ -344,15 +344,16 @@ private:
 		}
 		else
 		{
-			// Singles are shifts, not sounds — a retrigger while only a shift is
-			// held has nothing to re-fire. (See FireCombo.)
-			int8_t cur = levels_.Current();
-			if (cur >= kNumSingles)
+			// Re-fire the last VOICE that sounded. Singles are shifts, not
+			// sounds, so if nothing has been played yet there is nothing to
+			// re-fire. (See FireCombo.)
+			if (lastVoice_ >= 0)
 			{
-				drums_.Trigger(cur, KnobVal(Knob::Y));
-				if (recording_) loop_.RecordHit(cur, 100);
+				drums_.TriggerVoice(lastVoice_, KnobVal(Knob::Y));
+				if (recording_) loop_.RecordHit(lastVoice_, 100);
 				gateTimer_ = kGateSamples;
-				ledFlash_[cur & 3] = kCtrlRate / 8;
+				int8_t cur = levels_.Current();
+				if (cur >= 0) ledFlash_[cur & 3] = kCtrlRate / 8;
 			}
 		}
 	}
@@ -385,9 +386,13 @@ private:
 			// holding a button to reach the kit also holds its bass note, which
 			// is musically the right thing anyway — the root sustains while you
 			// play the drums over it.
-			bassNote_ = static_cast<uint8_t>(kBassRoot + kBassSemis[combo]);
-			bassOn_   = true;
+			bassNote_  = static_cast<uint8_t>(kBassRoot + kBassSemis[combo]);
+			bassOn_    = true;
 			gateTimer_ = kGateSamples;
+			// CV Out 2 gates the bassline specifically, so a shift press can
+			// open an envelope without also firing on every drum hit the way
+			// Pulse Out 1 does. Another bonus off an output that was idle.
+			bassGate_  = kGateSamples;
 			ledFlash_[combo & 3] = kCtrlRate / 8;
 			return;
 		}
@@ -436,25 +441,29 @@ private:
 			// kit from six voices to twelve. See LevelTracker::Shift().
 			int8_t shift = levels_.Shift();
 			int8_t tap   = OtherMember(combo, shift);
+			int8_t voice = VoiceForGesture(shift, tap);
 
-			if (shift >= 0 && tap >= 0)
+			// No shift latched: the pair was reached without passing through one
+			// of its own buttons — from another pair, or as the first press
+			// after a calibration. Pick the voice either member would give
+			// rather than going silent.
+			if (voice < 0)
 			{
-				drums_.TriggerOrdered(shift, tap, KnobVal(Knob::Y));
-				// The LOOP still stores the combination, not the ordering. That
-				// is a deliberate simplification: a recorded pattern replays
-				// through the combo-indexed kit, so it keeps its voice without
-				// the event needing a fifth byte.
-				if (recording_) loop_.RecordHit(combo, 100);
+				const uint8_t *m = kPairMembers[combo - kNumSingles];
+				voice = VoiceForGesture(static_cast<int8_t>(m[0]),
+				                        static_cast<int8_t>(m[1]));
 			}
-			else
-			{
-				// No shift latched — the pair was reached without passing
-				// through one of its own buttons (from another pair, or as the
-				// first press after a calibration). Fall back to the
-				// combo-indexed kit rather than going silent.
-				drums_.Trigger(combo, KnobVal(Knob::Y));
-				if (recording_) loop_.RecordHit(combo, 100);
-			}
+			if (voice < 0) return;
+
+			drums_.TriggerVoice(voice, KnobVal(Knob::Y));
+			lastVoice_ = voice;
+
+			// The loop records the VOICE, not the gesture. A pattern is a list
+			// of sounds — "kick", "snare" — and how each one was played is a
+			// property of the performance, not of the pattern. It also means
+			// re-arranging the gesture map later cannot silently change what an
+			// existing loop plays.
+			if (recording_) loop_.RecordHit(voice, 100);
 		}
 
 		gateTimer_ = kGateSamples;
@@ -520,7 +529,7 @@ private:
 			int n = loop_.Fire(combo, vel, &filt, &haveFilt);
 			for (int i = 0; i < n; i++)
 			{
-				drums_.Trigger(combo[i], KnobVal(Knob::Y));
+				drums_.TriggerVoice(combo[i], KnobVal(Knob::Y));
 				gateTimer_ = kGateSamples;
 				ledFlash_[combo[i] & 3] = kCtrlRate / 8;
 			}
@@ -541,13 +550,51 @@ private:
 			if (haveFilt) filterOverride_ = filt;
 		}
 
-		// Moving the knob reclaims it from the recorded automation.
-		int32_t m = KnobVal(Knob::Main);
-		int32_t dm = m - mainLast_;
-		if (dm > kKnobMoveThresh || dm < -kKnobMoveThresh)
+		// --- Knob PICKUP -------------------------------------------------
+		//
+		// The knob reclaims the filter from recorded automation, but only on a
+		// real move. Two things make that harder than it looks:
+		//
+		// 1. The reference has to be taken when playback TAKES OVER, and then
+		//    left alone. Updating it every time the knob drifts past the
+		//    threshold (which the first version did) lets ADC dither ratchet:
+		//    each small step moves the reference, so the knob eventually
+		//    "travels" a long way without a finger ever touching it, and
+		//    playback is yanked away mid-loop.
+		//
+		// 2. The threshold has to be wider than the dither but narrower than a
+		//    deliberate nudge. kKnobMoveThresh (64 of 4095) is already tuned for
+		//    exactly that job elsewhere on the card, so it is reused here rather
+		//    than inventing a second number.
+		// 3. The comparison is made against a SMOOTHED reading, not the raw one.
+		//    A latched reference alone is not enough: if the ADC's own noise is
+		//    comparable to the threshold, single samples still cross it and hand
+		//    control back at random. Modelling this showed a still knob with
+		//    +/-70 counts of noise releasing thousands of times a minute even
+		//    with the reference held fixed. A one-pole filter drops the noise
+		//    far below the threshold while a real move still arrives within a
+		//    few milliseconds.
+		mainSmooth_ = slew_exact(mainSmooth_, KnobVal(Knob::Main), 4);
+
+		if (filterOverride_ >= 0)
 		{
-			mainLast_ = m;
-			filterOverride_ = -1;
+			// Playback owns the filter. Latch the position ONCE, on the
+			// transition, and compare against that fixed point from then on.
+			if (!pickupArmed_)
+			{
+				pickupArmed_ = true;
+				pickupRef_   = mainSmooth_;
+			}
+			int32_t dm = mainSmooth_ - pickupRef_;
+			if (dm > kKnobMoveThresh || dm < -kKnobMoveThresh)
+			{
+				filterOverride_ = -1;    // the player moved it: hand back
+				pickupArmed_    = false;
+			}
+		}
+		else
+		{
+			pickupArmed_ = false;
 		}
 	}
 
@@ -758,6 +805,20 @@ private:
 				CVOutMillivolts(0, mv);
 			}
 		}
+
+		// CV Out 2 gates that bassline: a 5V blip whenever a SHIFT button is
+		// pressed live, so the bass voice can have its own envelope without
+		// also opening on every drum hit the way Pulse Out 1 does.
+		//
+		// Loop playback does NOT fire it — the singles are a live performance
+		// control, and a recorded pattern has no shift presses in it.
+		int32_t gateMv = (bassGate_ > 0) ? 5000 : 0;
+		if (bassGate_ > 0) bassGate_--;
+		if (gateMv != cvLastMv_[1])
+		{
+			cvLastMv_[1] = gateMv;
+			CVOutMillivolts(1, gateMv);
+		}
 	}
 
 	// =======================================================================
@@ -965,7 +1026,10 @@ private:
 	// drums
 	bool    recording_      = false;
 	int32_t filterOverride_ = -1;
-	int32_t mainLast_       = -9999;
+	// Knob pickup for the DJ filter — see DrumsControl().
+	int32_t mainSmooth_     = 0;
+	bool    pickupArmed_    = false;
+	int32_t pickupRef_      = 0;
 
 	// outputs
 	int32_t gateTimer_    = 0;
@@ -974,6 +1038,13 @@ private:
 	// DRUMS bass line: the pitch the last single button asked for.
 	uint8_t bassNote_ = kBassRoot;
 	bool    bassOn_   = false;
+
+	/// Last drum VOICE that sounded, for the retrigger tap. -1 until the first
+	/// hit — a shift on its own is not a sound and has nothing to repeat.
+	int8_t  lastVoice_ = -1;
+
+	/// Countdown for the CV Out 2 bass gate, in samples.
+	int32_t bassGate_ = 0;
 	int32_t cvLastMv_[2]  = { -999999, -999999 };
 	int32_t ledFlash_[4]  = {};
 };

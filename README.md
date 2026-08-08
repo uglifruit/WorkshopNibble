@@ -256,6 +256,10 @@ fifth, and the octave — gated on Pulse Out 1 alongside the hits.
 |--------|---|---|---|---|
 | Note | root | −2 | +5th | +octave |
 
+**CV Out 2 gates it** — a 5 V blip on each shift press, so the bass voice can
+have its own envelope without opening on every drum hit the way Pulse Out 1
+does. Live presses only; a recorded pattern has no shift presses in it.
+
 No combos, no scale, no quantiser. Once a pattern is looping, patch CV Out 1 at
 an oscillator and put a simple line under it with the same four buttons. It also
 falls out of the shift gesture for nothing: holding a button to reach the kit
@@ -270,6 +274,11 @@ Four bars. It records **events, not audio**, which is what makes overdub
 lossless — the twentieth pass sounds exactly like the first, because nothing is
 ever re-recorded. It is also why the tempo knob **re-times** a pattern instead of
 pitching it, and why filter-knob moves can be recorded alongside the hits.
+
+The loop stores **which sound** — kick, snare, crash — not which buttons made
+it. How a hit was played belongs to the performance, not the pattern, and it
+means re-arranging the gesture map can never silently change what an old loop
+plays back.
 
 Hits are quantised to 1/16 on playback; filter sweeps deliberately are not.
 Punching in with the switch does not reset the loop position.
