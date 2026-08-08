@@ -1,5 +1,26 @@
 # NIBBLE devlog
 
+## v1.8.1 — the LED flash lit the wrong pad
+
+Reported from KEYS: a single press flashes the right LED, but B+C flashes
+**LED 3 (D)** — a button not even in the combo.
+
+The cause was `ledFlash_[combo & 3]`, masking a COMBO index (0..9) down to an
+LED index (0..3). Singles were right by coincidence, because 0..3 mask to
+themselves. Every pair was wrong, and two of them (BD, CD) landed on a pad
+belonging to neither button pressed.
+
+`ComboLedMask()` already existed and does this properly — it was written for the
+held-combo display and simply never used by the flash path. The flash now goes
+through it, so a pair lights both of its buttons.
+
+One consequence worth noting: a hit replayed from the LOOP knows its *voice*,
+not the gesture that made it, and the same voice is reachable from more than one
+gesture. `FlashVoice()` looks up a gesture that plays it, so playback lights the
+same pads the performance did rather than nothing at all.
+
+---
+
 ## v1.8.0 — the loop was eating itself, and Y automation
 
 ### Voice stealing, which is what "recording silences previous stuff" was

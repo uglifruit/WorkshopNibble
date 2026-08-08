@@ -402,7 +402,7 @@ private:
 				if (recording_) loop_.RecordHit(lastVoice_, 100);
 				gateTimer_ = kGateSamples;
 				int8_t cur = levels_.Current();
-				if (cur >= 0) ledFlash_[cur & 3] = kCtrlRate / 8;
+				if (cur >= 0) FlashCombo(cur);
 			}
 		}
 	}
@@ -442,7 +442,7 @@ private:
 			// open an envelope without also firing on every drum hit the way
 			// Pulse Out 1 does. Another bonus off an output that was idle.
 			bassGate_  = kGateSamples;
-			ledFlash_[combo & 3] = kCtrlRate / 8;
+			FlashCombo(combo);
 			return;
 		}
 
@@ -516,7 +516,7 @@ private:
 		}
 
 		gateTimer_ = kGateSamples;
-		ledFlash_[combo & 3] = kCtrlRate / 8;
+		FlashCombo(combo);
 	}
 
 	// --- KEYS ---------------------------------------------------------
@@ -598,7 +598,11 @@ private:
 			{
 				drums_.TriggerVoice(voices[i], toneKnob_);
 				gateTimer_ = kGateSamples;
-				ledFlash_[voices[i] & 3] = kCtrlRate / 8;
+				// A looped hit knows its VOICE, not which buttons would have
+				// played it — and the same voice is reachable from more than one
+				// gesture. Flash the pads that gesture uses, looked up from the
+				// map, so playback lights the same LEDs the performance did.
+				FlashVoice(voices[i]);
 			}
 		}
 
@@ -833,6 +837,34 @@ private:
 	// =======================================================================
 	// LEDs
 	// =======================================================================
+
+	/// Flash every LED belonging to a combo.
+	///
+	/// This used to be `ledFlash_[combo & 3]`, masking a COMBO index (0..9) into
+	/// an LED index (0..3). Singles happened to be right because 0..3 mask to
+	/// themselves; every pair was wrong. BC (index 7) lit LED 3 — button D,
+	/// which is not even in the combo — so playing a two-finger note flashed an
+	/// unrelated pad.
+	void __not_in_flash_func(FlashCombo)(int8_t combo)
+	{
+		uint8_t mask = ComboLedMask(combo);
+		for (int i = 0; i < 4; i++)
+			if (mask & (1u << i)) ledFlash_[i] = kCtrlRate / 8;
+	}
+
+	/// Flash the pads for a recorded VOICE, by finding a gesture that plays it.
+	void __not_in_flash_func(FlashVoice)(int8_t voice)
+	{
+		for (int sh = 0; sh < kNumSingles; sh++)
+			for (int tp = 0; tp < kNumSingles; tp++)
+				if (VoiceForGesture(static_cast<int8_t>(sh),
+				                    static_cast<int8_t>(tp)) == voice)
+				{
+					ledFlash_[sh] = kCtrlRate / 8;
+					ledFlash_[tp] = kCtrlRate / 8;
+					return;
+				}
+	}
 
 	void __not_in_flash_func(UiTick)()
 	{
