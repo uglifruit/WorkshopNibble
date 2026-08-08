@@ -283,6 +283,22 @@ Sixteen voices can ring at once, and when they are all busy the card steals the
 **quietest** rather than the oldest — so a voice near the end of its decay goes
 before one that has just started.
 
+### Riding a recorded knob
+
+**Main** and **Y** are both recorded into the loop, and both work the same way
+live: **moving the knob mutes that lane's playback** while you move it and for a
+quarter-second after. Let go and the recorded sweep picks up again from wherever
+it has reached.
+
+Nothing is destroyed by touching a knob — grab the filter, ride it through a
+section, let go, and the pattern carries on exactly as recorded. It is a
+performance override, not a mode.
+
+While **recording**, a knob writes only where you actually move it. Sweep across
+half a bar and that half is replaced; the rest keeps whatever was there. A knob
+sitting still records nothing, so it can never flatten an earlier sweep just by
+being armed.
+
 ### Panel
 
 | Control | Does |
@@ -292,7 +308,7 @@ before one that has just started.
 | **Y** | Kit character: lower and longer ↔ higher and shorter — **recorded into the loop** |
 | **Switch MID** | Play the loop |
 | **Switch UP** | Record / overdub |
-| **Switch tap** | Retrigger the last sound |
+| **Switch tap** | Re-strike the **bass note** the held button is playing |
 | **Switch held 2s** | Calibrate — **and erase the loop** |
 
 ### In / out

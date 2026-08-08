@@ -129,53 +129,71 @@ constexpr int32_t kMinLearnSpan = 400;
 /// How long the failure is announced before dropping back to play.
 constexpr int32_t kFailFlashTicks = 3 * kCtrlRate / 2;   // 1.5s
 
-/// One automated knob: recorded playback that the physical knob can reclaim.
+/// One automated knob: recorded playback, and a live hand that overrides it.
 ///
-/// Three things have to be right, and each was a bug before it was a comment:
+/// Named AutoKnob rather than KnobLane because looper.h already uses KnobLane
+/// for the lane INDEX enum, and the two would be ambiguous in this file.
 ///
-///  1. Playback must keep applying WHILE RECORDING. Gating it on !recording
-///     meant arming record snapped the filter to wherever the knob physically
-///     sat, silencing the loop exactly when you wanted to play along.
-///  2. The reference is latched ONCE when playback takes over, never updated
-///     while it holds. Re-taking it on every threshold crossing let ADC dither
-///     ratchet the knob "across" the threshold untouched.
-///  3. The comparison uses a SMOOTHED reading. A latched reference alone is not
-///     enough when the noise is comparable to the threshold — modelling showed
-///     a still knob handing back thousands of times a minute. Smoothing gives
-///     zero false releases to +/-100 counts while a real move still lands in
-///     about a millisecond.
-struct KnobPickup
+/// The rule is deliberately simple, because the previous one was not:
+///
+///   MOVING the knob mutes that lane's playback, for as long as you keep
+///   moving and for a short hold afterwards. Stop, and the recorded sweep
+///   takes over again from wherever it has got to.
+///
+/// That makes the knob a performance override rather than a mode: grab it,
+/// ride the filter through a section, let go, and the pattern carries on
+/// exactly as recorded. Nothing is destroyed by touching it.
+///
+/// What this replaces, and why: the old design "handed control back" on a move
+/// and then handed it forward again on the next recorded event. Control
+/// therefore alternated between hand and playback every few ticks whenever both
+/// were active, which is the glitching that was reported. Muting for a held
+/// window instead means only ONE of them is ever driving.
+struct AutoKnob
 {
-	int32_t override_ = -1;      ///< >=0 when recorded automation owns the knob
-	int32_t smooth_   = 0;
-	int32_t ref_      = 0;
-	bool    armed_    = false;
+	int32_t playback_ = -1;      ///< last value playback asked for, -1 = none
+	int32_t smooth_   = 0;       ///< de-dithered knob reading
+	int32_t last_     = -9999;   ///< reading the move detector compares against
+	int32_t holdTicks_ = 0;      ///< >0 while the hand owns the knob
 
-	/// Value to use this tick: the recorded one if it owns the knob, else live.
-	int32_t Value(int32_t live) const
+	/// How long the hand keeps the knob after it stops moving.
+	///
+	/// Long enough to bridge the gaps between samples of a slow, deliberate
+	/// turn — without it, a careful sweep would flicker between hand and
+	/// playback every time the knob paused. Short enough that letting go feels
+	/// immediate.
+	static constexpr int32_t kHold = kCtrlRate / 4;   // 250ms
+
+	bool HandOwns() const { return holdTicks_ > 0; }
+
+	/// Control-rate update. Returns the value to use this tick.
+	int32_t Update(int32_t live)
 	{
-		return (override_ >= 0) ? override_ : live;
-	}
-
-	void Playback(int32_t v) { override_ = v; }
-
-	void Release()
-	{
-		override_ = -1;
-		armed_    = false;
-	}
-
-	/// Control-rate update. Hands back to the player on a genuine move.
-	void Update(int32_t live)
-	{
+		// Smoothed, because the move test is against a threshold and raw ADC
+		// dither would otherwise trip it on a stationary knob.
 		smooth_ = slew_exact(smooth_, live, 4);
-		if (override_ < 0) { armed_ = false; return; }
 
-		if (!armed_) { armed_ = true; ref_ = smooth_; }
+		if (last_ < -9000) last_ = smooth_;      // first call: seed, do not move
 
-		int32_t d = smooth_ - ref_;
-		if (d > kKnobMoveThresh || d < -kKnobMoveThresh) Release();
+		int32_t d = smooth_ - last_;
+		if (d > kKnobMoveThresh || d < -kKnobMoveThresh)
+		{
+			last_      = smooth_;
+			holdTicks_ = kHold;
+		}
+		else if (holdTicks_ > 0)
+		{
+			holdTicks_--;
+		}
+
+		// The hand wins while it is moving; otherwise playback does, if it has
+		// anything to say.
+		if (HandOwns() || playback_ < 0) return smooth_;
+		return playback_;
 	}
+
+	void Playback(int32_t v) { playback_ = v; }
+	void Forget()            { playback_ = -1; }
 };
 
 } // namespace
@@ -409,16 +427,24 @@ private:
 		}
 		else
 		{
-			// Re-fire the last VOICE that sounded. Singles are shifts, not
-			// sounds, so if nothing has been played yet there is nothing to
-			// re-fire. (See FireCombo.)
-			if (lastVoice_ >= 0)
+			// Re-fire the BASS note the held single is playing, not the last
+			// drum that sounded.
+			//
+			// A drum retrigger duplicates something the buttons already do
+			// perfectly well — tapping the same pair again is faster and more
+			// accurate than reaching for the switch. The bassline has no other
+			// way to be re-struck at all: the note only fires when the combo
+			// CHANGES, so holding one button gives a single note and nothing
+			// more. This makes the switch a repeat key for the bass, which is
+			// what you want to play a line over a running pattern.
+			int8_t cur = levels_.Current();
+			if (cur >= 0 && cur < kNumSingles)
 			{
-				drums_.TriggerVoice(lastVoice_, toneKnob_);
-				if (recording_) loop_.RecordHit(lastVoice_, 100);
+				bassNote_  = static_cast<uint8_t>(kBassRoot + kBassSemis[cur]);
+				bassOn_    = true;
 				gateTimer_ = kGateSamples;
-				int8_t cur = levels_.Current();
-				if (cur >= 0) FlashCombo(cur);
+				bassGate_  = kGateSamples;
+				FlashCombo(cur);
 			}
 		}
 	}
@@ -521,7 +547,6 @@ private:
 			if (voice < 0) return;
 
 			drums_.TriggerVoice(voice, toneKnob_);
-			lastVoice_ = voice;
 
 			// The loop records the VOICE, not the gesture. A pattern is a list
 			// of sounds — "kick", "snare" — and how each one was played is a
@@ -569,11 +594,14 @@ private:
 
 		loop_.SetTempo(KnobVal(Knob::X));
 
-		const int32_t mainLive = KnobVal(Knob::Main);
-		const int32_t toneLive = KnobVal(Knob::Y);
+		// Each lane decides for itself whether the hand or the recording is
+		// driving this tick. Moving the knob mutes that lane's playback while
+		// you move it and for a moment after; letting go hands it straight back.
+		const int32_t mainVal = filterLane_.Update(KnobVal(Knob::Main));
+		const int32_t toneVal = toneLane_.Update(KnobVal(Knob::Y));
 
-		djFilter_.SetKnob(filterPickup_.Value(mainLive));
-		toneKnob_ = tonePickup_.Value(toneLive);
+		djFilter_.SetKnob(mainVal);
+		toneKnob_ = toneVal;
 
 		// Erasing the loop is done by entering calibration — see EnterLearn().
 		// The old gesture here was "hold the switch UP with no hits played",
@@ -581,7 +609,11 @@ private:
 		// long stretches while playing, so "no hits played" is true far more
 		// often than the player means it to be.
 
-		if (recording_) loop_.RecordKnobs(mainLive, toneLive);
+		// Record only what the HAND is doing. Recording the value that came out
+		// of the lane would re-record playback on top of itself every pass.
+		if (recording_)
+			loop_.RecordKnobs(filterLane_.HandOwns(), KnobVal(Knob::Main),
+			                  toneLane_.HandOwns(),   KnobVal(Knob::Y));
 
 		if (loop_.Advance())
 		{
@@ -601,14 +633,11 @@ private:
 
 			int n = loop_.Fire(voices, vel, knob, haveKnob);
 
-			// Apply automation BEFORE firing the hits, so a recorded tone change
-			// lands on the hits recorded alongside it rather than one tick late.
-			if (haveKnob[kLaneFilter]) filterPickup_.Playback(knob[kLaneFilter]);
-			if (haveKnob[kLaneTone])
-			{
-				tonePickup_.Playback(knob[kLaneTone]);
-				toneKnob_ = knob[kLaneTone];
-			}
+			// Hand the recorded values to the lanes. Whether they are actually
+			// USED is the lane's decision — if the player is moving that knob,
+			// this is remembered but muted until they let go.
+			if (haveKnob[kLaneFilter]) filterLane_.Playback(knob[kLaneFilter]);
+			if (haveKnob[kLaneTone])   toneLane_.Playback(knob[kLaneTone]);
 
 			for (int i = 0; i < n; i++)
 			{
@@ -621,9 +650,6 @@ private:
 				FlashVoice(voices[i]);
 			}
 		}
-
-		filterPickup_.Update(mainLive);
-		tonePickup_.Update(toneLive);
 	}
 
 	// =======================================================================
@@ -649,8 +675,8 @@ private:
 		// is guaranteed to be meaningless: the levels are about to change, so
 		// the combos the pattern refers to may not even exist afterwards.
 		loop_.Clear();
-		filterPickup_.Release();
-		tonePickup_.Release();
+		filterLane_.Forget();
+		toneLane_.Forget();
 		// Entering on a HOLD means the release of that hold is still to come.
 		// holdFired_ is already true here, which swallows it — without that,
 		// the release would immediately read as the capture tap for step 0.
@@ -1082,8 +1108,8 @@ private:
 
 	// drums
 	bool       recording_ = false;
-	KnobPickup filterPickup_;   ///< Main knob: the DJ filter
-	KnobPickup tonePickup_;     ///< Y knob: kit character
+	AutoKnob   filterLane_;     ///< Main knob: the DJ filter
+	AutoKnob   toneLane_;       ///< Y knob: kit character
 	int32_t    toneKnob_  = 2048;   ///< the Y value voices are struck with
 
 	// outputs
@@ -1097,10 +1123,6 @@ private:
 	// DRUMS bass line: the pitch the last single button asked for.
 	uint8_t bassNote_ = kBassRoot;
 	bool    bassOn_   = false;
-
-	/// Last drum VOICE that sounded, for the retrigger tap. -1 until the first
-	/// hit — a shift on its own is not a sound and has nothing to repeat.
-	int8_t  lastVoice_ = -1;
 
 	/// Countdown for the CV Out 2 bass gate, in samples.
 	int32_t bassGate_ = 0;

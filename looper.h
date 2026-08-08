@@ -138,10 +138,18 @@ public:
 	/// Record both automated knobs. Called once per control tick while
 	/// recording; internally rate-limited to one sample every kKnobSampleTicks.
 	///
+	/// A lane only writes while its `moving` flag is set — i.e. while the player
+	/// actually has hold of that knob. That is what makes automation OVERWRITE
+	/// IN PLACE: the ticks you sweep across get your new values, and the ticks
+	/// you do not touch keep whatever was recorded before. A knob sitting still
+	/// records nothing at all, so it can never overwrite an earlier sweep with a
+	/// flat line.
+	///
 	/// Both lanes are taken together rather than each managing its own timer,
 	/// because a shared countdown consumed by whichever lane asked first would
 	/// starve the other completely.
-	void RecordKnobs(int32_t filterKnob, int32_t toneKnob);
+	void RecordKnobs(bool filterMoving, int32_t filterKnob,
+	                 bool toneMoving,   int32_t toneKnob);
 
 	/// Called when record is armed or released. Drops the knob reference so the
 	/// next RecordKnob() re-seeds instead of comparing against a stale value

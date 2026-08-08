@@ -3,7 +3,7 @@ Name: NIBBLE
 short-description: Turns the Four Voltages module into a ten-note keyboard, or a shift-and-tap drum looper
 Language: C++ (ComputerCard)
 Creator: Andy Jenkinson (uglifruit)
-Version: "1.9.1"
+Version: "1.10.0"
 Status: Released
 License: CC-BY-4.0
 repository: https://github.com/uglifruit/WorkshopNibble
@@ -17,7 +17,7 @@ contact:
 
 uf2:
   - path: UF2/nibble.uf2
-    name: NIBBLE 1.9.1
+    name: NIBBLE 1.10.0
 
 tags:
   - keyboard
@@ -142,7 +142,7 @@ controls:
       description: Calibration starts automatically at power-on, since the learned levels are never saved. HOLD for two seconds to start another, in either mode - and in DRUMS this also ERASES the loop, which is the erase gesture. Hold again during calibration to abandon it and keep the previous one. Calibration fails visibly, with the two LED columns alternating, if nothing usable is coming in on CV In 1.
     tap:
       name: Retrigger / Capture
-      description: In play, re-fires the current note or sound. During calibration, captures the combination you are holding.
+      description: "KEYS - re-fires the current note. DRUMS - re-strikes the BASS note the held single button is playing, rather than the last drum. A drum is easier to repeat by tapping its pair again, whereas the bassline has no other way to be struck twice at all, since a note only fires when the combination CHANGES - so holding one button gives you a single note and nothing more. This makes the switch a repeat key for the bass. During calibration, captures the combination you are holding."
   knobs:
     -
       main:

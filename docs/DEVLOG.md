@@ -1,5 +1,49 @@
 # NIBBLE devlog
 
+## v1.10.0 — the knob is an override, not a negotiation
+
+### Why handing control back was glitchy
+
+The pickup design released the knob to the player on a move, and then the very
+next recorded event handed it straight back to playback. With both active,
+control alternated between hand and recording every few ticks — measured at **65
+transitions** during a single grab-and-release. That is the glitching.
+
+The replacement is a state, not a handshake: **moving the knob mutes that lane's
+playback**, for as long as you move and for a 250ms hold after. Only one of them
+is ever driving. The same grab-and-release now measures **5 transitions**.
+
+The hold matters. Without it a slow, deliberate sweep would flicker every time
+the knob paused between samples; 250ms bridges that and still feels immediate
+when you let go.
+
+### Recording overwrites only where you move
+
+A lane now writes only while the player has hold of that knob. Sweep across half
+a bar and that half is replaced; the rest keeps what it had.
+
+The bug this closes is subtle: recording the knob's position every tick meant a
+knob *sitting still* wrote a flat line over an earlier sweep, simply because
+record was armed. Only moving knobs write anything now.
+
+Note the value recorded is the raw knob, not the lane's output — recording the
+output would re-record playback on top of itself on every pass.
+
+### The DRUMS tap re-strikes the bass
+
+It re-fired the last drum, which duplicated something the buttons already do
+better: tapping a pair again is faster and more accurate than reaching for the
+switch.
+
+The bassline had no way to be struck twice at all. A note only fires when the
+combination CHANGES, so holding one button gives a single note and nothing more.
+The tap is now a repeat key for the bass, which is what makes it playable over a
+running pattern.
+
+`lastVoice_` went with it — it had become state that was written and never read.
+
+---
+
 ## v1.9.1 — the external clock never actually worked
 
 Reported that Pulse In 1 did not override the X knob. It did not, and three

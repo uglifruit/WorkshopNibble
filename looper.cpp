@@ -201,7 +201,8 @@ void Looper::RecordHit(int8_t voice, uint8_t velocity)
 	Insert(ev);
 }
 
-void Looper::RecordKnobs(int32_t filterKnob, int32_t toneKnob)
+void Looper::RecordKnobs(bool filterMoving, int32_t filterKnob,
+                         bool toneMoving,   int32_t toneKnob)
 {
 	// One countdown for BOTH lanes, checked once and reset once. Letting each
 	// lane test and consume it separately would mean whichever asked first ate
@@ -209,30 +210,22 @@ void Looper::RecordKnobs(int32_t filterKnob, int32_t toneKnob)
 	if (knobCountdown_ > 0) return;
 	knobCountdown_ = kKnobSampleTicks;
 
-	RecordLane(kLaneFilter, filterKnob);
-	RecordLane(kLaneTone,   toneKnob);
+	// Only a knob the player is actually holding writes anything — see the
+	// header. A still knob recording its position every tick would flatten an
+	// existing sweep into a straight line just by being armed.
+	if (filterMoving) RecordLane(kLaneFilter, filterKnob);
+	if (toneMoving)   RecordLane(kLaneTone,   toneKnob);
 }
 
 void Looper::RecordLane(uint8_t lane, int32_t knob)
 {
 	if (lane >= kNumLanes) return;
 
-	// Arming record must not, by itself, write anything.
-	//
-	// lastKnob_ starts unset, so the FIRST call after switching to record used
-	// to look like a move and immediately stamp the knob's physical position
-	// into the loop. If the filter knob happened to be parked at a closed
-	// low-pass, that silenced the pattern the instant you armed — which is
-	// precisely what arming record must never do.
-	if (lastKnob_[lane] < 0)
-	{
-		lastKnob_[lane] = knob;
-		return;
-	}
-
-	if ((knob - lastKnob_[lane] < kKnobMoveThresh)
-	 && (lastKnob_[lane] - knob < kKnobMoveThresh))
-		return;
+	// The caller has already established that this knob is being moved, and by
+	// a smoothed, thresholded test — so there is no move detection here. What
+	// this used to do was compare against its own remembered value, which meant
+	// arming record could itself look like a move and stamp the knob's resting
+	// position into the loop.
 	lastKnob_[lane] = knob;
 
 	const uint8_t what = static_cast<uint8_t>(kKnobEvent | lane);
