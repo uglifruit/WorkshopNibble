@@ -13,7 +13,12 @@ hits.
 tuning oscillators together — and was silently clipping the top of wide scales.
 LEDs 4 and 5 lit in KEYS for no useful reason. Wanted a click track.
 
-All fixed; the list below is updated for v1.2.0.
+**Session 3 found:** arming record muted the loop (the filter snapped to the
+physical knob), which made overdubbing nearly impossible. The momentary fired on
+release rather than press, so every retrigger landed late. Wanted a bassline off
+the spare CV output in DRUMS, and calibration to start by itself.
+
+All fixed; the list below is updated for v1.3.0.
 
 Flash `FLASHME/nibble.uf2` (hold BOOTSEL, plug in USB, drag it across).
 
@@ -64,7 +69,9 @@ during calibration and in DRUMS.
 
 ## 3. Calibration — the big one
 
-Hold the momentary switch **2 seconds**. LEDs 0–3 should start showing you which
+**It starts by itself** about a second after power-up, so you should already be
+in it. (Holding the switch for 2 seconds starts another at any time, and aborts
+one in progress.) LEDs 0–3 should start showing you which
 combination to press, with LED 4 lit dim (singles phase).
 
 Ten steps, in this order:
@@ -182,7 +189,7 @@ CV Out 1 and CV Out 2 → the two oscillators.
 
 ---
 
-## 7. DRUMS — shift and tap
+## 7. DRUMS — shift and tap, and the bassline
 
 Power-cycle holding the switch. Audio Out 1 and 2 both carry the whole kit.
 
@@ -202,6 +209,11 @@ Six voices, reachable as pairs:
 The thing to test hardest: **hold A and tap B repeatedly.** You should get a
 clean run of kicks, as fast as you can tap, with no extra sounds between them.
 That is the whole reason singles went silent.
+
+**The four singles now play a bassline** on CV Out 1, gated on Pulse Out 1.
+Patch it at an oscillator: A is the root, B a tone below, C the fifth, D the
+octave, all between 0.83 V and 2 V. They still make no drum sound. Holding a
+shift should sustain its bass note while you play the kit over it.
 
 - **Y** should shift the kit lower/longer ↔ higher/shorter.
 - **Main** is the DJ filter: low-pass left, **bypass at centre**, high-pass
@@ -231,6 +243,10 @@ That is the whole reason singles went silent.
   Patch it at a click voice and record along to it. It should stay a blip at
   40 bpm, not a long gate.
 - **Hold the switch 2 s** → calibration starts AND the loop is erased.
+- **Arming record must NOT mute the loop.** This was the session-3 bug: play a
+  pattern, sweep the filter, then flip to record. The loop should keep sounding
+  at whatever the recorded automation says, and the knob should only take over
+  once you actually move it.
 
 ---
 
@@ -238,7 +254,10 @@ That is the whole reason singles went silent.
 
 In rough priority order:
 
-1. Whether the **envelopes** are now long enough, and whether the DARK/BALANCED/
+1. Whether the **tap now feels immediate** — it fires on press rather than
+   release, which was the main thing making the card feel unresponsive.
+2. Whether **overdubbing works** now that arming record no longer mutes.
+3. Whether the **envelopes** are now long enough, and whether the DARK/BALANCED/
    BRIGHT sweep on X is a useful axis or just three flavours of the same thing.
 2. Whether the **six-voice kit** is the right six, and whether the shift-and-tap
    layout falls under the hand. The mapping is a table in `drums.cpp` and is

@@ -3,7 +3,7 @@ Name: NIBBLE
 short-description: Turns the Four Voltages module into a ten-note keyboard, or a shift-and-tap drum looper
 Language: C++ (ComputerCard)
 Creator: Andy Jenkinson (uglifruit)
-Version: "1.2.0"
+Version: "1.3.0"
 Status: Released
 License: CC-BY-4.0
 repository: https://github.com/uglifruit/WorkshopNibble
@@ -17,7 +17,7 @@ contact:
 
 uf2:
   - path: UF2/nibble.uf2
-    name: NIBBLE 1.2.0
+    name: NIBBLE 1.3.0
 
 tags:
   - keyboard
@@ -87,9 +87,9 @@ panel:
       description: Not used in this version.
   outputs:
     - id: CVOut1
-      name: Pitch / Unused*
+      name: Pitch / Bassline*
       type: cv
-      description: KEYS - calibrated 1V/oct pitch, stepped, or glided when the switch is up. The root of the scale is 0V, so an oscillator at its own zero is already in tune. DRUMS - unused.
+      description: "KEYS - calibrated 1V/oct pitch, stepped, or glided when the switch is up. The root of the scale is 0V, so an oscillator at its own zero is already in tune. DRUMS - a four-note bassline played by the single buttons, which make no drum sound and so had a spare output: A is the root, B a tone below, C the fifth, D the octave. No combos and no scale - once a pattern is looping you can put a simple line under it with the same four buttons."
     - id: CVOut2
       name: Harmony / Unused*
       type: cv
@@ -105,7 +105,7 @@ panel:
     - id: PulseOut1
       name: Gate
       type: pulse
-      description: Fires on every note or drum hit, from the buttons, from a retrigger, or from the loop.
+      description: "Fires on every note or drum hit, from the buttons, from a retrigger, or from the loop. In DRUMS it also gates the bassline the single buttons play."
     - id: PulseOut2
       name: Click*
       type: pulse
@@ -121,7 +121,7 @@ controls:
       description: KEYS - pitch steps straight to each new note. DRUMS - the loop plays, and you can play along without recording.
     down:
       name: Calibrate
-      description: HOLD for two seconds to start calibration, in either mode - and in DRUMS this also ERASES the loop, which is the erase gesture. Hold again during calibration to abandon it and keep the previous one. Calibration fails visibly, with the two LED columns alternating, if nothing usable is coming in on CV In 1.
+      description: Calibration starts automatically at power-on, since the learned levels are never saved. HOLD for two seconds to start another, in either mode - and in DRUMS this also ERASES the loop, which is the erase gesture. Hold again during calibration to abandon it and keep the previous one. Calibration fails visibly, with the two LED columns alternating, if nothing usable is coming in on CV In 1.
     tap:
       name: Retrigger / Capture
       description: In play, re-fires the current note or sound. During calibration, captures the combination you are holding.

@@ -59,8 +59,10 @@ and it sounds.
 The Four Voltages knob changes every voltage it produces, so the card cannot
 guess and does not try to remember. Teach it whenever you move that knob.
 
-**Hold the momentary switch down for 2 seconds** to start. Then, for each of ten
-steps:
+**Calibration starts on its own at power-up** — the learned levels are never
+saved, so it is the first thing you would do anyway. You can also start one any
+time by **holding the momentary switch for 2 seconds**, and abort with the same
+hold. Then, for each of ten steps:
 
 1. The LEDs show which buttons to press. **LEDs 0–3 are laid out exactly like
    the A B / C D buttons**, so the pattern *is* the instruction — no counting.
@@ -258,6 +260,24 @@ and slow to tight and clicky without a resampler in the way.
 **Pulse Out 2 is a click track** — one blip per beat, running whenever the loop
 is, so you have something to record along to. Patch it at a click voice, or just
 watch LED 4.
+
+### A bassline, for free
+
+The four single buttons make no drum sound, so their CV output was going spare.
+They play **four bass notes on CV Out 1** instead — root, a tone below, the
+fifth, and the octave — gated on Pulse Out 1 alongside the hits.
+
+| Button | A | B | C | D |
+|--------|---|---|---|---|
+| Note | root | −2 | +5th | +octave |
+
+No combos, no scale, no quantiser. Once a pattern is looping, patch CV Out 1 at
+an oscillator and put a simple line under it with the same four buttons. It also
+falls out of the shift gesture for nothing: holding a button to reach the kit
+holds its bass note too, so the root sustains while you play drums over it.
+
+A bonus rather than the feature — but it costs one table and an output nothing
+else was using.
 
 ### The looper
 

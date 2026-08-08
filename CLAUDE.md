@@ -46,7 +46,7 @@ Output: `build/nibble.uf2`. Copy to `FLASHME/` for flashing (git-ignored).
 - `CVOutMillivolts()` / `CVOutMIDINote()` are **flash-resident**. Cache the last
   value and only call them on a change, or they put XIP reads in the hot loop.
 - Build clean: `-Wall -Wextra -Wdouble-promotion -Wfloat-conversion` are on.
-  Watch `--print-memory-usage` at link time. Currently ~4.6% flash, ~8.3% RAM.
+  Watch `--print-memory-usage` at link time. Currently ~4.7% flash, ~8.6% RAM.
 
 ## Why there is no core 1
 
@@ -119,22 +119,39 @@ of direction-dependent error in the level detector before it existed.
 | `levels.h/.cpp` | Level detection, settle/match, **the ghost rule** |
 | `scales.h` | 12 scale tables + `QuantizeNote()` |
 | `keys.h/.cpp` | KEYS: macro distribution, envelopes, glide |
-| `drums.h/.cpp` | DRUMS: 10 parametric voices, DJ filter |
+| `drums.h/.cpp` | DRUMS: parametric voices, the bassline table, DJ filter |
 | `looper.h/.cpp` | Event loop: record, overdub, tempo, clear |
 | `fastmath.h/.cpp` | Fixed-point helpers, sine LUT, PRNG |
 | `ComputerCard.h` | Vendored MTM library — **do not edit** |
-| `tools/` | Python models (see below) + `syntax.sh` |
+| `tools/` | Python models (see below), `syntax.sh`, `checkyaml.py` |
 | `info.yaml` | Workshop System card registry metadata |
 | `docs/DEVLOG.md` | Design decisions, and the bugs the models caught |
 | `docs/HARDWARE-TESTING.md` | Running order for a hardware session, and what to bring back |
 
 ## Current status
 
-**Nothing has touched hardware yet.** v1.0.0 is model-verified and
-compiler-verified only. Before changing anything in response to how it sounds,
-read `docs/HARDWARE-TESTING.md` — it lists what to check in what order, and the
-tolerance constants most likely to need moving (`kSettleTol`, `kMatchWindow`,
-`kCollisionMin`, grouped at the top of `levels.h` for exactly that reason).
+**v1.3.0, three hardware sessions in.** The core works: calibration, the ghost
+rule and triggering were all good on first contact and have not needed changing.
+Everything since has been playability.
+
+What those sessions changed, in case it saves re-deriving it:
+
+- **Envelopes** could not be made long at all — `+1` in the decay dominated
+  above shift 11, so every setting capped at 43 ms. Fixed with `kEnvFrac`.
+- **The root** sat at 3 V, reading as an octave jump and silently clipping the
+  top of wide scales. It is 0 V now, with `kMaxRoot` sized against the real
+  worst case (the Maj7 arpeggio's *harmony* voice, 35 semitones up).
+- **Singles are shifts** in DRUMS, because percussion needs repeated hits on one
+  drum and a keyboard reading of the buttons cannot give you that.
+- **The tap fires on press**, not release. Firing on release made every hit land
+  late by however long a finger stayed down.
+- **LEDs 4 and 5 are dark** while playing in KEYS. Anything that is not
+  actionable mid-performance is just a light to learn to ignore.
+
+`docs/HARDWARE-TESTING.md` is the running order for the next session and lists
+what is still unaudited. The tolerance constants at the top of `levels.h`
+(`kSettleTol`, `kMatchWindow`, `kCollisionMin`) are grouped there because they
+were expected to need tuning — they have not so far.
 
 ## Verifying changes
 
@@ -145,6 +162,7 @@ sh tools/syntax.sh          # type-check every .cpp with the ARM compiler, ~1s
 python tools/ghostsim.py    # the ghost rule + learn round-trip
 python tools/dspsim.py      # DJ filter stability, soft clip
 python tools/loopsim.py     # event ordering, overdub, tempo
+python tools/checkyaml.py   # info.yaml parses AND is structurally complete
 ```
 
 `tools/syntax.sh` does not link, so it cannot catch a missing symbol — but it

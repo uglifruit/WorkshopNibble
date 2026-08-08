@@ -28,16 +28,6 @@ constexpr uint8_t kShiftRange[kNumEnvs] = { 9, 9 };
 /// are unipolar, so this is the positive ceiling.
 constexpr int32_t kEnvFullScale = 2047;
 
-/// Millivolts per semitone, x256. 1V/oct = 1000mV per 12 semitones, so one
-/// semitone is 83.333mV, kept in Q8.
-///
-/// Convert with `(note * kMvPerSemiQ8 + 128) >> 8` — the +128 ROUNDS instead of
-/// truncating, and it matters. Truncating is biased one way at every octave
-/// (every C landed a full millivolt flat, 1.2 cents, which is audible against a
-/// tuned oscillator); rounding brings the worst case over the whole 0..127
-/// range down to 0.33mV, or 0.4 cents, which is not.
-constexpr int32_t kMvPerSemiQ8 = 21333;   // round(1000/12 * 256)
-
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -120,8 +110,8 @@ void Keys::NoteOn(uint8_t midiNote, uint8_t harmonyNote)
 	// Pitch is carried in millivolts rather than as a MIDI note so that glide
 	// has something continuous to move through. CVOutMillivolts() applies the
 	// same EEPROM calibration as CVOutMIDINote(), so tuning is unaffected.
-	targetMv_   = (static_cast<int32_t>(midiNote)    * kMvPerSemiQ8 + 128) >> 8;
-	harmTarget_ = (static_cast<int32_t>(harmonyNote) * kMvPerSemiQ8 + 128) >> 8;
+	targetMv_   = SemisToMillivolts(midiNote);
+	harmTarget_ = SemisToMillivolts(harmonyNote);
 
 	// First note after boot should not glide up from zero — that is a swoop
 	// nobody asked for.

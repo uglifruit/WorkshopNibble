@@ -1,5 +1,68 @@
 # NIBBLE devlog
 
+## v1.3.0 — playability
+
+### Recording muted the loop, which made overdubbing nearly impossible
+
+Reported as the loop going quiet on arming record. Nothing muted the hits — the
+cause was one gate on the *filter*: recorded automation stopped applying while
+`recording_`, so the DJ filter snapped to wherever the knob physically sat. Park
+it at a closed low-pass and everything goes silent, which is exactly when you
+are trying to play along.
+
+The gate was protecting against playback fighting the live knob. But the knob
+already wins the instant it *moves*, which is the real requirement, and it does
+that without the loop having to disappear first. Playback now applies while
+recording too.
+
+### The tap fires on press
+
+It fired on *release*, so that a tap and a hold could share one control without
+the hold also firing a tap on its way past. Logically tidy, and completely wrong
+to play: the retrigger arrived when you let go, so every hit landed late by
+however long your finger stayed down.
+
+Firing on press costs exactly what the old design was avoiding — beginning a
+hold now also fires one tap. That is fine here because the two never conflict: a
+retrigger just before entering calibration is harmless, and a capture just
+before aborting one is discarded with the abort.
+
+One real consequence, found by tracing rather than by ear: the stray capture
+sets `phaseTimer_` and a Confirm flash, and `LearnTick()` returns early while a
+phase timer runs — so the abort's own timer was being overwritten and **the
+abort was silently swallowed by the gesture that triggered it**. `AbortLearn()`
+now clobbers both fields unconditionally.
+
+### A bassline on the spare output
+
+The four singles make no drum sound, so CV Out 1 was doing nothing in DRUMS.
+They now play four notes — root, a tone below, the fifth, the octave — gated on
+Pulse Out 1 alongside the hits. No combos, no scale, no quantiser.
+
+Rooted an octave up rather than at 0V, because B is a tone *below* the root and
+the output cannot usefully go negative: at a 0V root that note would be −167mV,
+which most oscillators ignore. At 1V all four sit between 0.83V and 2V.
+
+It also falls out of the shift gesture for free — holding a button to reach the
+kit holds its bass note too, so the root sustains while you play drums over it.
+
+### Calibration starts at power-up
+
+The learned levels are RAM-only by design, so every power-up begins
+uncalibrated and holding the switch for two seconds was the first thing you did
+anyway. Now it just happens. Still escapable with the same hold, falling back to
+the evenly-spaced default.
+
+### tools/checkyaml.py
+
+`info.yaml` broke on an unquoted colon inside a description for the second time
+in two sessions — `KEYS: the thing` is a YAML mapping, not prose. There is now a
+validator that catches it, names the likely cause, and also checks the things
+that would parse fine while still being wrong: unknown socket ids, missing
+switch positions, and the version string diverging between its two homes.
+
+---
+
 ## v1.2.0 — tuning, and getting out of the way
 
 ### The root is 0 V now, and the old root was clipping

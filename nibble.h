@@ -140,6 +140,26 @@ constexpr int32_t kHoldTicks = 2 * kCtrlRate;              // 2s
 constexpr int32_t kKnobMoveThresh = 64;
 
 // ---------------------------------------------------------------------------
+// Pitch
+// ---------------------------------------------------------------------------
+
+/// Millivolts per semitone, x256. 1V/oct is 1000mV per 12 semitones, so one
+/// semitone is 83.333mV, kept in Q8.
+///
+/// Convert with `(note * kMvPerSemiQ8 + 128) >> 8` — the +128 ROUNDS instead of
+/// truncating, and it matters. Truncating is biased the same way at every
+/// octave (every C landed a full millivolt flat, 1.2 cents, audible against a
+/// tuned oscillator); rounding brings the worst case over 0..127 down to
+/// 0.33mV, or 0.4 cents, which is not.
+constexpr int32_t kMvPerSemiQ8 = 21333;   // round(1000/12 * 256)
+
+/// Semitone number -> millivolts, rounded.
+static inline int32_t SemisToMillivolts(int32_t semis)
+{
+	return (semis * kMvPerSemiQ8 + 128) >> 8;
+}
+
+// ---------------------------------------------------------------------------
 // LEDs
 // ---------------------------------------------------------------------------
 

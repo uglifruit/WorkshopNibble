@@ -24,11 +24,11 @@
 //   Switch UP = glide, MID = step       Switch UP = record, MID = play
 //   Switch hold 2s = calibrate          Switch hold 2s = calibrate + clear loop
 //
-//   CV Out 1     1V/oct pitch                  Audio Out 1  drum bus
-//   CV Out 2     1V/oct harmony, a third       Audio Out 2  drum bus
-//   Audio Out 1  FILTER envelope
+//   CV Out 1     1V/oct pitch                  CV Out 1     1V/oct bassline
+//   CV Out 2     1V/oct harmony, a third       Audio Out 1  drum bus
+//   Audio Out 1  FILTER envelope               Audio Out 2  drum bus
 //   Audio Out 2  LOUDNESS envelope
-//   Pulse Out 1  gate on every note            Pulse Out 1  gate on every hit
+//   Pulse Out 1  gate on every note            Pulse Out 1  gate on hits + bass
 //   Pulse Out 2  (unused)                      Pulse Out 2  click, one per beat
 //
 // The root of the scale sits at 0V, so an oscillator at its own zero is already
@@ -36,7 +36,11 @@
 //
 // In DRUMS a SINGLE button is a shift, not a sound: only pairs trigger. That is
 // what lets you hold one button and tap the others to repeat a hit, which is
-// what percussion actually needs.
+// what percussion actually needs. The singles do play four BASS notes on
+// CV Out 1 though — a bonus, not the feature, using an output that was spare.
+//
+// Calibration starts automatically at power-on: the learned levels are RAM-only
+// by design, so it is the first thing you would do anyway.
 //
 // ---------------------------------------------------------------------------
 // SINGLE CORE, DELIBERATELY
@@ -178,6 +182,18 @@ public:
 			if (--splash_ == 0)
 			{
 				for (int i = 0; i < kNumLeds; i++) LedOff(i);
+
+				// Go straight into calibration once the splash clears.
+				//
+				// The learned levels are RAM-only by design (the Four Voltages
+				// knob invalidates them), so every power-up starts uncalibrated
+				// and the first thing you would do is hold the switch for two
+				// seconds anyway. Doing it automatically removes a ritual that
+				// was required every single time.
+				//
+				// It is escapable the usual way: hold the switch for two seconds
+				// to abort, and the card plays on its evenly-spaced default.
+				EnterLearn();
 			}
 			else
 			{
@@ -267,9 +283,8 @@ private:
 	///   Play  + tap  -> retrigger      Play  + hold -> enter learn
 	///   Learn + tap  -> capture step   Learn + hold -> abort learn
 	///
-	/// The action fires on RELEASE for a tap and on reaching the count for a
-	/// hold. That split is what lets both coexist: beginning a hold must not
-	/// also fire the tap.
+	/// The tap fires on PRESS and the hold on reaching the count, so beginning a
+	/// hold also fires one tap. That is deliberate — see the body.
 	void __not_in_flash_func(ReadSwitch)()
 	{
 		Switch sw = SwitchVal();
@@ -281,8 +296,26 @@ private:
 			// switch has been released at least once. Without the second
 			// condition, holding at power-on to select DRUMS and simply not
 			// letting go fast enough would drop you straight into learn.
-			if (splash_ == 0 && !holdFired_ && downTicks_ < kHoldTicks)
-				downTicks_++;
+			if (splash_ > 0 || holdFired_) return;
+
+			// THE TAP FIRES ON PRESS, on the very first tick Down is seen.
+			//
+			// It used to fire on RELEASE, so that a tap and a hold could share
+			// one control without the hold also firing the tap on its way past.
+			// That is correct logic and completely wrong to play: a retrigger
+			// arrived when you LET GO, so every hit landed late by however long
+			// your finger stayed down, and the instrument felt unresponsive in
+			// a way that is hard to name but impossible to play through.
+			//
+			// Firing on press costs one thing: beginning a hold now also fires
+			// a tap. That is acceptable here because the two actions do not
+			// conflict — a retrigger immediately before entering calibration is
+			// harmless, and a capture immediately before aborting one is
+			// discarded with the abort. Responsiveness is worth far more than
+			// tidiness.
+			if (downTicks_ == 0) tapped_ = true;
+
+			if (downTicks_ < kHoldTicks) downTicks_++;
 
 			if (downTicks_ >= kHoldTicks && !holdFired_)
 			{
@@ -293,7 +326,6 @@ private:
 		}
 		else
 		{
-			if (downTicks_ > 0 && !holdFired_) tapped_ = true;
 			downTicks_ = 0;
 			holdFired_ = false;
 		}
@@ -344,8 +376,19 @@ private:
 		// to keep working identically in both modes.
 		if (boot_ == BootMode::Drums && combo < kNumSingles)
 		{
-			// Still worth showing on the LEDs — knowing which shift is held is
-			// the whole point of the gesture.
+			// Silent as a DRUM — but the CV output was going spare, so a single
+			// also plays a bass note. Four pitches, no combos and no scale: once
+			// a pattern is looping you can put a simple line under it with the
+			// same four buttons, which costs almost nothing to provide.
+			//
+			// A bonus rather than the feature. The shift gesture is unaffected:
+			// holding a button to reach the kit also holds its bass note, which
+			// is musically the right thing anyway — the root sustains while you
+			// play the drums over it.
+			bassNote_ = static_cast<uint8_t>(kBassRoot + kBassSemis[combo]);
+			bassOn_   = true;
+			gateTimer_ = kGateSamples;
+			ledFlash_[combo & 3] = kCtrlRate / 8;
 			return;
 		}
 
@@ -460,7 +503,18 @@ private:
 			// Recorded filter automation takes over the knob until the player
 			// moves it again — otherwise the live knob position would fight
 			// the playback on every tick.
-			if (haveFilt && !recording_) filterOverride_ = filt;
+			//
+			// This used to be gated on !recording_, which MUTED THE LOOP the
+			// moment you armed record: playback stopped applying, the filter
+			// snapped to wherever the knob physically sat, and if that was a
+			// closed low-pass everything went quiet. Overdubbing against
+			// silence is close to impossible.
+			//
+			// Playback applies while recording too now. The knob still wins the
+			// instant it MOVES (see below), which is the only thing the gate
+			// was really protecting, and it does that job without the loop
+			// having to disappear first.
+			if (haveFilt) filterOverride_ = filt;
 		}
 
 		// Moving the knob reclaims it from the recorded automation.
@@ -512,6 +566,16 @@ private:
 	/// code that never lit an LED.
 	void AbortLearn()
 	{
+		// Overwrites whatever phase was running, deliberately.
+		//
+		// Now that a tap fires on PRESS, beginning the abort hold also fires one
+		// capture on its way past — which sets phaseTimer_ and a Confirm flash.
+		// Without clobbering both here, LearnTick()'s early return would run out
+		// that confirm timer INSTEAD of the abort, and the abort would be
+		// silently swallowed by the gesture that triggered it.
+		//
+		// The stray capture itself is harmless: learnStep_ is reset on the next
+		// EnterLearn(), and nothing is installed unless all ten complete.
 		learnPhase_ = LearnPhase::Aborted;
 		phaseTimer_ = kCaptureFlashTicks * 2;
 	}
@@ -658,6 +722,18 @@ private:
 		// one output should get the whole kit rather than half of it.
 		AudioOut1(out);
 		AudioOut2(out);
+
+		// CV Out 1 carries the bass line the single buttons play. Cached like
+		// every other CV write, because CVOutMillivolts reaches into flash.
+		if (bassOn_)
+		{
+			int32_t mv = SemisToMillivolts(bassNote_);
+			if (mv != cvLastMv_[0])
+			{
+				cvLastMv_[0] = mv;
+				CVOutMillivolts(0, mv);
+			}
+		}
 	}
 
 	// =======================================================================
@@ -870,6 +946,10 @@ private:
 	// outputs
 	int32_t gateTimer_    = 0;
 	int32_t clickTimer_   = 0;
+
+	// DRUMS bass line: the pitch the last single button asked for.
+	uint8_t bassNote_ = kBassRoot;
+	bool    bassOn_   = false;
 	int32_t cvLastMv_[2]  = { -999999, -999999 };
 	int32_t ledFlash_[4]  = {};
 };
