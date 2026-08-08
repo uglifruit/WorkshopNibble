@@ -1,5 +1,31 @@
 # NIBBLE devlog
 
+## v1.11.2 — the collision warning was crying wolf
+
+Reported that combinations flagged with the LED 4+5 collision warning were then
+reading fine and staying distinct in play. They were.
+
+`kCollisionMin` was 64 — a number picked before any hardware existed and never
+revisited. The detector's actual limit is set by `kSettleTol`: a reading counts
+as settled within ±24, so two levels only become genuinely ambiguous once their
+gap falls below about 48, where a reading could plausibly land on the wrong side
+of the midpoint. 64 was 1.3× stricter than even that.
+
+Now 40, deliberately *below* the theoretical limit rather than above it. The
+trade is accepted knowingly: a pair between 40 and 48 apart might occasionally
+flicker under drift without having been flagged. That is worth it, because a
+warning which fires on combinations you can play reliably teaches you to ignore
+the warning — which is strictly worse than not warning at all.
+
+Checked on the model across gaps: silent from 40 up, warns below, and genuinely
+misclassifies only at 8–16. "Nothing patched in" still fails on the span check
+regardless, since all ten captures land on the same value and span zero.
+
+`tools/ghostsim.py` mirrors this constant and was updated with it — the two
+drifting apart is exactly the failure that file exists to prevent.
+
+---
+
 ## v1.11.1 — the calibration alerts were blinking at 47Hz
 
 Reported that the calibration warnings did not seem to fire — including with

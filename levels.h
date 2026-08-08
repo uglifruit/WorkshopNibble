@@ -82,9 +82,25 @@ constexpr int32_t kDeadband = 16;
 /// and the current note simply stays latched.
 constexpr int32_t kMatchWindow = 96;
 
-/// Two learned levels closer than this cannot be reliably told apart; the learn
-/// machine flags it rather than pretending otherwise.
-constexpr int32_t kCollisionMin = 64;
+/// Two learned levels closer than this are reported as a collision.
+///
+/// This is a WARNING threshold, not the point where the detector stops working,
+/// and the two are not the same number. The detector's real limit is set by
+/// kSettleTol: a reading is accepted as settled within +/-24, so two levels are
+/// genuinely ambiguous only once their gap drops below about 48, where a
+/// reading could plausibly land on the wrong side of the midpoint between them.
+///
+/// This started at 64 — a guess made before any hardware existed, and 1.3x
+/// stricter than even that theoretical limit. On the bench it cried wolf:
+/// combinations it flagged were being played reliably, which teaches the player
+/// to ignore the warning, which is worse than not warning at all.
+///
+/// 40 is deliberately BELOW the theoretical limit, so it stays quiet unless two
+/// levels are genuinely on top of each other. The trade is accepted knowingly:
+/// a pair between 40 and 48 apart may occasionally flicker under drift without
+/// having been flagged. A warning that means something is worth more than one
+/// that covers every case.
+constexpr int32_t kCollisionMin = 40;
 
 /// Input smoothing on the raw CV. Kills ADC dither without smearing an edge.
 constexpr uint8_t kCvSmoothShift = 3;

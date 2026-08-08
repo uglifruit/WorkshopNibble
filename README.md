@@ -122,6 +122,12 @@ diagonals**.
 The two warnings use different lights on purpose: the *button* LEDs mean it was
 your hand, the *marker* LEDs mean it was the card.
 
+The collision warning is deliberately **quiet**. It fires only when two levels
+land within about 117 mV of each other — below the point where the card actually
+starts confusing them — so if you see it, it is worth acting on. A warning that
+appears on combinations you can play perfectly well just teaches you to ignore
+it.
+
 ### How it ends, and what to do about it
 
 | At the end | Means | Do |

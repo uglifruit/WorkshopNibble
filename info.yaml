@@ -3,7 +3,7 @@ Name: NIBBLE
 short-description: Turns the Workshop System's mysterious four buttons into tools to make melodic lines and lo-fi drum loops
 Language: C++ (ComputerCard)
 Creator: Andy Jenkinson (uglifruit)
-Version: "1.11.1"
+Version: "1.11.2"
 Status: Released
 License: CC-BY-4.0
 repository: https://github.com/uglifruit/WorkshopNibble
@@ -17,7 +17,7 @@ contact:
 
 uf2:
   - path: UF2/nibble.uf2
-    name: NIBBLE 1.11.1
+    name: NIBBLE 1.11.2
 
 tags:
   - keyboard
@@ -203,6 +203,11 @@ host:
     is too close to an earlier one to separate reliably; the calibration still
     completes, and you can move the Four Voltages knob and run it again. The two
     warnings use different lights deliberately.
+
+    The collision warning is deliberately quiet - it fires only when two levels
+    are within about 117mV, which is below the point where the detector actually
+    starts confusing them. A warning that appears on combinations you can play
+    perfectly well just teaches you to ignore it.
 
     Calibration is NOT saved across power cycles, on purpose. The Four Voltages
     knob moves every voltage it produces, so a remembered calibration would be a
