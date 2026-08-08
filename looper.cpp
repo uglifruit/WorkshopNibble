@@ -106,6 +106,12 @@ bool Looper::Advance()
 		phase_ -= kQ16One;
 		playHead_ = static_cast<uint16_t>((playHead_ + 1) % kLoopTicks);
 
+		// Latch the beat crossing here, where it happens exactly once, rather
+		// than letting the caller poll OnBeat() — that is a level and stays true
+		// for the whole tick, which at 40bpm is dozens of control steps and
+		// would give a click that is on more than it is off.
+		if ((playHead_ % kTicksPerBeat) == 0) beatEdge_ = true;
+
 		// Rewinding the cursor at the loop boundary is what makes playback a
 		// walk rather than a search.
 		if (playHead_ == 0) cursor_ = 0;

@@ -115,8 +115,23 @@ public:
 	uint16_t EventCount() const { return count_; }
 	bool     Full() const       { return count_ >= kMaxEvents; }
 
-	/// True on the first tick of each beat — the LEDs pulse on this.
+	/// True while the playhead is on a beat's first tick — the LEDs pulse on it.
+	///
+	/// A LEVEL, not an edge: it stays true for as long as that tick lasts, which
+	/// at 40bpm is dozens of control ticks. Fine for an LED, useless for a
+	/// trigger. Use BeatEdge() for anything that needs to fire once.
 	bool OnBeat() const { return (playHead_ % kTicksPerBeat) == 0; }
+
+	/// True exactly ONCE per beat, on the control tick that crosses into it.
+	///
+	/// This is what drives the click on Pulse Out 2. Consumed by reading, so
+	/// call it once per Advance() and nowhere else.
+	bool BeatEdge()
+	{
+		if (!beatEdge_) return false;
+		beatEdge_ = false;
+		return true;
+	}
 
 private:
 	void Insert(const LoopEvent &ev);
@@ -140,6 +155,7 @@ private:
 	// External clock. clockTimeout_ counts down at control rate; while it is
 	// non-zero the knob is ignored. About 3 seconds, so a stopped clock hands
 	// control back rather than freezing the loop.
+	bool     beatEdge_ = false;   ///< set by Advance(), consumed by BeatEdge()
 	int32_t  clockTimeout_ = 0;
 	int32_t  clockInterval_ = 0;   ///< control ticks between the last two edges
 	int32_t  sinceClock_    = 0;

@@ -1,5 +1,59 @@
 # NIBBLE devlog
 
+## v1.2.0 — tuning, and getting out of the way
+
+### The root is 0 V now, and the old root was clipping
+
+Reported as "feels like there's an octave jump" when tuning oscillators
+together. It was worse than an offset: `kBaseNote` was MIDI 36, converted
+straight to millivolts, so **the root sat at 3 V**. Matching an oscillator meant
+winding it down an octave and a half.
+
+The part that only showed up on inspection: 3 V of a ~6 V output was simply
+gone. The top of the widest scale with full transpose asked for **7.3 V** and
+clipped silently — the highest notes were flat and nothing said so.
+
+Root is now 0 V, so an oscillator at its own zero is already in tune, and
+transpose runs upward from something neutral. The transposed root is capped at
+36 semitones, sized against the genuine worst case rather than a guess: the
+Maj7 arpeggio's *harmony* voice reaches degree 11, which on a four-note scale is
+35 semitones above the root. Checked across all twelve scales, every degree and
+both transpose extremes — the full range is now 0 V to 5.92 V, with nothing
+clipped.
+
+The arpeggios are the ones that bite. Few notes per octave means degrees climb
+fast, and it is the harmony voice, not the played note, that reaches highest.
+
+### LEDs 4 and 5 go dark in KEYS
+
+LED 4 flashed on every note — information LEDs 0–3 already carry, since the
+combo lights up as you play it. A second light saying "a note happened" only
+competes with the one that says *which* note.
+
+LED 5 sat on permanently to mean "calibrated". True, but not actionable
+mid-performance, so it was a light to learn to ignore.
+
+Both keep their jobs elsewhere — phase markers during calibration, and LED 4 is
+the beat in DRUMS. Here they say nothing, which is the right amount.
+
+### Pulse Out 2 is a click track in DRUMS
+
+One blip per crotchet, running whenever the loop is, so there is something to
+record along to.
+
+Driven from a new `BeatEdge()` rather than the existing `OnBeat()`. That
+distinction matters: `OnBeat()` is a *level* that stays true for the whole tick,
+and at 40 bpm a tick is dozens of control steps — a click that is on more than
+it is off. The edge is latched inside `Advance()` where the crossing happens
+exactly once, and consumed by reading.
+
+### A note on the docs
+
+`info.yaml` broke on an unquoted colon inside a description. Caught by validating
+it rather than by eye, which is the second time that check has earned its keep.
+
+---
+
 ## v1.1.0 — after the first hardware session
 
 Calibration and triggering both worked first time on real hardware, which is the

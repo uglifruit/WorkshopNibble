@@ -32,12 +32,39 @@ constexpr int kNumEnvs = 2;
 // How far above the played note the harmony sits is per-scale, and lives with
 // the scale tables: see HarmonyDegreesFor() in scales.h.
 
-/// Lowest note the keyboard sits at, before transpose. C2 — low enough that
-/// two and a half octaves of degrees stays in useful bass/mid territory.
-constexpr int kBaseNote = 36;
+/// The root of the scale sits at 0V.
+///
+/// It used to be MIDI note 36, which put the root at THREE VOLTS — so tuning an
+/// oscillator to match meant winding it down an octave and a half, and it read
+/// as an octave jump against anything else in the rack. Worse, it wasted 3V of
+/// a ~6V output: the top of a wide scale with full transpose asked for 7.3V and
+/// silently clipped.
+///
+/// At 0V the whole useful range is available above it, an oscillator at its own
+/// zero is already in tune, and CV In 2 can transpose in either direction from
+/// something musically neutral.
+constexpr int kBaseNote = 0;
 
 /// Transpose range from CV In 2, in semitones either way.
+///
+/// Downward transposition is CLAMPED at the root rather than going negative:
+/// the CV outputs can swing below zero, but an oscillator's 1V/oct input
+/// generally cannot use it, so the notes would simply pile up at the bottom.
 constexpr int kTransposeSemis = 24;
+
+/// Highest the transposed root may go, in semitones above 0V.
+///
+/// Sized so the highest note the card can produce still fits the ~6V output.
+/// The widest case is the Maj7 arpeggio's HARMONY voice: the harmony sits two
+/// degrees above the tenth combo, i.e. degree 11, which on a four-note scale is
+/// two octaves plus a major seventh — 35 semitones above the root. 36 + 35 = 71
+/// semitones = 5.92V, just inside.
+///
+/// Beyond this the top of the scale clips silently, which is exactly how the
+/// old 3V root managed to ask for 7.3V without ever complaining. Verified for
+/// all twelve scales rather than reasoned about — the arpeggios are the ones
+/// that bite, because few notes per octave means degrees climb fast.
+constexpr int kMaxRoot = 36;
 
 /// Extra fractional bits the envelope accumulator carries.
 ///

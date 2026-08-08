@@ -7,7 +7,13 @@ one's.
 short (a real bug — they capped at 43 ms regardless of the knob). LED 5 blinking
 distractingly. Ghost notes shown on the LEDs instead of the held combo. Singles
 triggering in DRUMS, which fights repeated hits. Overdub appearing to overwrite
-hits. All fixed in v1.1.0; the list below is updated for it.
+hits.
+
+**Session 2 found:** the root sat at 3 V, which read as an octave jump when
+tuning oscillators together — and was silently clipping the top of wide scales.
+LEDs 4 and 5 lit in KEYS for no useful reason. Wanted a click track.
+
+All fixed; the list below is updated for v1.2.0.
 
 Flash `FLASHME/nibble.uf2` (hold BOOTSEL, plug in USB, drag it across).
 
@@ -51,7 +57,8 @@ probably be wrong — that is expected and not a failure. What matters is that
 **something changes** when you press, and that it is stable rather than
 flickering.
 
-**LED 5 should be off**, meaning "never calibrated".
+**LEDs 4 and 5 should be dark** while playing in KEYS — they only have jobs
+during calibration and in DRUMS.
 
 ---
 
@@ -132,9 +139,15 @@ and the previous note stays as it was.
 Patch **CV Out 1** to an oscillator's 1V/oct input, **Pulse Out 1** to an
 envelope.
 
+- **Check the root is 0 V.** Play the lowest combo with nothing in CV In 2; the
+  oscillator should be at its own unmodulated pitch. This is the fix for the
+  octave jump — no winding down to find the keyboard.
 - Play the four singles: should be four ascending scale degrees.
 - Play the pairs: should continue upward from there.
 - Check an octave against a tuner. It should be within a couple of cents.
+- **Sweep Y to an arpeggio scale and play the top combo** — that is the highest
+  voltage the card can produce (~5.9 V with full transpose). It should still be
+  in tune, not flat from clipping.
 - Turn **Y** — the LEDs show a bar, and the scale should change audibly.
 - **Switch UP** → notes should glide; **MID** → they should step.
 - **Tap the switch** → the same note re-fires.
@@ -214,6 +227,9 @@ That is the whole reason singles went silent.
   it, X should stop having any effect, and it should hand back to the knob about
   three seconds after the clock stops. Locking on should not stutter the
   pattern.
+- **Pulse Out 2 is the click** — one short blip per beat, in step with LED 4.
+  Patch it at a click voice and record along to it. It should stay a blip at
+  40 bpm, not a long gate.
 - **Hold the switch 2 s** → calibration starts AND the loop is erased.
 
 ---

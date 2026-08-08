@@ -139,6 +139,7 @@ degrees; adding a second finger climbs.
 | Audio Out 1 | FILTER envelope |
 | Audio Out 2 | LOUDNESS envelope |
 | Pulse Out 1 | Gate on every note |
+| Pulse Out 2 | (unused in KEYS) |
 
 The two envelopes are for driving an external filter and VCA — patch them at the
 Humpback filters and an amplifier and one macro knob shapes the whole voice.
@@ -185,7 +186,9 @@ chooses the **range** as well as the flavour, and the difference is obvious the
 moment you play it — the arpeggios are the ones to reach for when you want the
 buttons to cover real ground.
 
-Root is C2, and **CV In 2** transposes the lot.
+**The root of the scale is 0 V**, so an oscillator sitting at its own zero is
+already in tune with the card — no winding it down an octave to find the
+keyboard. **CV In 2** transposes upward from there, up to two octaves.
 
 ---
 
@@ -251,6 +254,10 @@ and slow to tight and clicky without a resampler in the way.
 | **Switch UP** | Record / overdub |
 | **Switch tap** | Retrigger the last sound |
 | **Switch held 2s** | Calibrate — **and erase the loop** |
+
+**Pulse Out 2 is a click track** — one blip per beat, running whenever the loop
+is, so you have something to record along to. Patch it at a click voice, or just
+watch LED 4.
 
 ### The looper
 

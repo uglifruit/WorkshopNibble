@@ -29,6 +29,10 @@
 //   Audio Out 1  FILTER envelope
 //   Audio Out 2  LOUDNESS envelope
 //   Pulse Out 1  gate on every note            Pulse Out 1  gate on every hit
+//   Pulse Out 2  (unused)                      Pulse Out 2  click, one per beat
+//
+// The root of the scale sits at 0V, so an oscillator at its own zero is already
+// in tune with the card.
 //
 // In DRUMS a SINGLE button is a shift, not a sound: only pairs trigger. That is
 // what lets you hold one button and tap the others to repeat a hit, which is
@@ -93,6 +97,10 @@ constexpr int32_t kScaleShowTicks      = (kCtrlRate * 6) / 5;   // 1.2s
 /// Gate length for note events, in samples. 5ms is long enough for anything
 /// downstream to see it and short enough not to smear fast playing.
 constexpr int32_t kGateSamples = kSampleRate / 200;
+
+/// Click-track pulse length. Shorter than a gate — it is a metronome tick, not
+/// a note, and at 240bpm the beats are only a quarter of a second apart.
+constexpr int32_t kClickSamples = kSampleRate / 500;   // 2ms
 
 // ---------------------------------------------------------------------------
 
@@ -206,6 +214,17 @@ public:
 		else
 		{
 			PulseOut1(false);
+		}
+
+		// Pulse Out 2: the DRUMS click track, silent in KEYS.
+		if (clickTimer_ > 0)
+		{
+			clickTimer_--;
+			PulseOut2(true);
+		}
+		else
+		{
+			PulseOut2(false);
 		}
 	}
 
@@ -346,8 +365,16 @@ private:
 				if (semis < -kTransposeSemis) semis = -kTransposeSemis;
 				root += semis;
 			}
-			if (root < 0)  root = 0;
-			if (root > 96) root = 96;
+			// The root is 0V, so a negative transpose has nowhere useful to go:
+			// the DAC can swing below zero but an oscillator's 1V/oct input
+			// generally cannot use it.
+			if (root < 0) root = 0;
+
+			// Cap so the HIGHEST note the card can produce still fits the ~6V
+			// output. The widest case is the Maj7 arpeggio, whose harmony voice
+			// reaches 31 semitones above the root; 40 + 31 = 71 semitones is
+			// 5.92V, just inside. Anything higher would clip silently.
+			if (root > kMaxRoot) root = kMaxRoot;
 
 			// The harmony is a few degrees up, run through the SAME scale — so
 			// it is a third that lands major or minor according to where in the
@@ -409,6 +436,15 @@ private:
 
 		if (loop_.Advance())
 		{
+			// Pulse Out 2 is a CLICK TRACK: one blip per crotchet, running
+			// whenever the loop is, so you have something to record along to.
+			// Patch it at a click voice, or just watch LED 4.
+			//
+			// Driven from BeatEdge() rather than OnBeat(): the latter is a level
+			// that stays true for the whole tick, which at 40bpm is dozens of
+			// control steps — a click that is on more than it is off.
+			if (loop_.BeatEdge()) clickTimer_ = kClickSamples;
+
 			int8_t  combo[Looper::kMaxFirePerTick];
 			uint8_t vel[Looper::kMaxFirePerTick];
 			int32_t filt = 0;
@@ -660,17 +696,19 @@ private:
 
 		if (boot_ == BootMode::Keys)
 		{
-			LedBrightness(4, gateTimer_ > 0 ? kLedFull : 0);
-
-			// Calibrated or not — a steady state, nothing animated.
+			// LEDs 4 and 5 stay DARK while playing, deliberately.
 			//
-			// This used to blink slowly whenever the learn had recorded any
-			// collision, as a standing reminder. In use that reads as a fault
-			// light and pulls the eye constantly, for information you were
-			// already given (and can act on) at the end of calibration. The
-			// warning now happens once, there; this just says whether the card
-			// is running a real calibration or its default guess.
-			LedOn(5, levels_.Learned());
+			// LED 4 used to flash on every note, which is information LEDs 0-3
+			// already carry — the combo lights up as you play it, and a second
+			// light saying "a note happened" only competes with it. LED 5 used
+			// to sit on permanently to mean "calibrated", which is not something
+			// you can act on mid-performance and just added a light to ignore.
+			//
+			// Both still have jobs elsewhere: during calibration they are the
+			// phase markers, and LED 4 is the beat in DRUMS. Here there is
+			// nothing worth saying, so they say nothing.
+			LedOff(4);
+			LedOff(5);
 		}
 		else
 		{
@@ -831,6 +869,7 @@ private:
 
 	// outputs
 	int32_t gateTimer_    = 0;
+	int32_t clickTimer_   = 0;
 	int32_t cvLastMv_[2]  = { -999999, -999999 };
 	int32_t ledFlash_[4]  = {};
 };

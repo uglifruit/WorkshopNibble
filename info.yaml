@@ -3,7 +3,7 @@ Name: NIBBLE
 short-description: Turns the Four Voltages module into a ten-note keyboard, or a shift-and-tap drum looper
 Language: C++ (ComputerCard)
 Creator: Andy Jenkinson (uglifruit)
-Version: "1.1.0"
+Version: "1.2.0"
 Status: Released
 License: CC-BY-4.0
 repository: https://github.com/uglifruit/WorkshopNibble
@@ -17,7 +17,7 @@ contact:
 
 uf2:
   - path: UF2/nibble.uf2
-    name: NIBBLE 1.1.0
+    name: NIBBLE 1.2.0
 
 tags:
   - keyboard
@@ -76,7 +76,7 @@ panel:
     - id: CVIn2
       name: Transpose
       type: cv
-      description: 1V/oct transpose of the whole keyboard, plus or minus two octaves, quantised to semitones. KEYS only, and only active when something is patched. Ignored in DRUMS.
+      description: 1V/oct transpose of the whole keyboard, up to two octaves, quantised to semitones so an imprecise voltage cannot leave everything slightly sharp. The root of the scale sits at 0V, so this transposes upward from there. KEYS only, and only active when something is patched. Ignored in DRUMS.
     - id: PulseIn1
       name: Retrigger / Clock*
       type: pulse
@@ -89,7 +89,7 @@ panel:
     - id: CVOut1
       name: Pitch / Unused*
       type: cv
-      description: KEYS - calibrated 1V/oct pitch, stepped, or glided when the switch is up. DRUMS - unused.
+      description: KEYS - calibrated 1V/oct pitch, stepped, or glided when the switch is up. The root of the scale is 0V, so an oscillator at its own zero is already in tune. DRUMS - unused.
     - id: CVOut2
       name: Harmony / Unused*
       type: cv
@@ -107,9 +107,9 @@ panel:
       type: pulse
       description: Fires on every note or drum hit, from the buttons, from a retrigger, or from the loop.
     - id: PulseOut2
-      name: Unused
+      name: Click*
       type: pulse
-      description: Not used in this version.
+      description: DRUMS - a click track, one blip per crotchet, running whenever the loop is, so there is something to record along to. KEYS - unused.
 
 controls:
   switch:
@@ -144,11 +144,11 @@ controls:
           name: Buttons A B / C D
           description: Laid out in the same 2x2 as the Four Voltages buttons, and used that way everywhere - they show which combination is currently held, they flash on each hit, and during calibration they show you which combination to press next, so the display is the instruction rather than a code to decode.
         - id: LED4
-          name: Gate / Beat
-          description: KEYS - flares on every note. DRUMS - pulses on the beat. During calibration it marks the four single-button steps.
+          name: Beat
+          description: DRUMS - pulses on the beat, matching the click on Pulse Out 2. During calibration it marks the four single-button steps. Dark while playing in KEYS - the combo LEDs already show every note, and a second light saying the same thing only competes with them.
         - id: LED5
           name: Calibration / Record
-          description: KEYS - solid when running a real calibration, off when running the uncalibrated default. DRUMS - lit while recording. During calibration it marks the six two-button steps. Collisions are reported once at the end of a calibration rather than blinking at you while you play.
+          description: DRUMS - lit while recording. During calibration it marks the six two-button steps. Dark while playing in KEYS - it used to sit on to mean calibrated, which is not something you can act on mid-performance. Collisions are reported once at the end of a calibration instead.
 
 host:
   notes: |
