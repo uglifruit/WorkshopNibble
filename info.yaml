@@ -3,7 +3,7 @@ Name: NIBBLE
 short-description: Turns the Workshop System's mysterious four buttons into tools to make melodic lines and lo-fi drum loops
 Language: C++ (ComputerCard)
 Creator: Andy Jenkinson (uglifruit)
-Version: "1.11.2"
+Version: "1.11.3"
 Status: Released
 License: CC-BY-4.0
 repository: https://github.com/uglifruit/WorkshopNibble
@@ -15,9 +15,14 @@ contact:
   social:
     github: https://github.com/uglifruit
 
+# The registry's demo-link takes a single URL, so Part 1 is the one that gets
+# the playable thumbnail on the card's page. Both parts are linked in the README,
+# where matching YouTube URLs are embedded inline.
+demo-link: https://youtu.be/te2GKfyd_0w
+
 uf2:
   - path: UF2/nibble.uf2
-    name: NIBBLE 1.11.2
+    name: NIBBLE 1.11.3
 
 tags:
   - keyboard
@@ -105,7 +110,7 @@ panel:
       type: cv
       description: MELODY - 1V/oct transpose of the whole keyboard, up to two octaves, quantised to semitones so an imprecise voltage cannot leave everything slightly sharp. The root of the scale sits at 0V, so this transposes upward from there, and it is only active when something is actually patched. PERCUSSION - unused.
     - id: PulseIn1
-      name: Retrigger / Clock*
+      name: Retrigger / ClkIn
       type: pulse
       description: MELODY - re-fires the current note without changing it, which is how you play repeated notes. PERCUSSION - an external clock at one pulse per beat. It OVERRIDES Knob X for as long as pulses keep arriving and hands the tempo back about three seconds after they stop, snapping to wherever the knob is then pointing. Locks anywhere from 30 to 240 BPM, and nudges into phase rather than snapping, so locking on never stutters the pattern.
     - id: PulseIn2
@@ -114,19 +119,19 @@ panel:
       description: Not used in this version.
   outputs:
     - id: CVOut1
-      name: Pitch / Bassline*
+      name: Pitch / Bass
       type: cv
       description: "MELODY - calibrated 1V/oct pitch, stepped, or glided when the switch is up. The root of the scale is 0V, so an oscillator at its own zero is already in tune. PERCUSSION - a four-note bassline played by the single buttons, which make no drum sound and so had a spare output: A is the root, B a tone below, C the fifth, D the octave. No combos and no scale - once a pattern is looping you can put a simple line under it with the same four buttons."
     - id: CVOut2
-      name: Harmony / Bass Gate*
+      name: Harmony / BassGate
       type: cv
       description: MELODY - a second calibrated 1V/oct pitch, a third above the note you played and picked from the same scale, so it lands major or minor according to where in the scale you are. Patch it to a second oscillator with Pulse Out 1 as a shared gate and the ten buttons play two-part harmony. PERCUSSION - a 5V gate whenever a single (shift) button is pressed live, so the bassline on CV Out 1 can have its own envelope without opening on every drum hit. Live presses only - a recorded pattern contains no shift presses.
     - id: AudioOut1
-      name: Filter Env / Drums*
+      name: Envelope1 / Drums
       type: audio
       description: "MELODY - the FILTER envelope, roughly 24ms to 3.7 seconds, able to go a little snappier than the loudness envelope for plucks. Knob X decides whether it closes before the note fades or outlasts it. PERCUSSION - the mono drum bus, after the DJ filter. Audio Out 2 carries the SAME bus, not a stereo partner: patch either socket and you get the whole kit."
     - id: AudioOut2
-      name: Loudness Env / Drums*
+      name: Envelope2 / Drums
       type: audio
       description: MELODY - the LOUDNESS envelope, roughly 44ms to 5.7 seconds across the macro knob. It is the one standing in for how long the note lasts, so it reaches genuine pad lengths. PERCUSSION - the same mono drum bus as Audio Out 1. They are deliberately identical and nothing splits them, so either socket gives you the whole kit rather than half of it.
     - id: PulseOut1
@@ -134,34 +139,34 @@ panel:
       type: pulse
       description: "Fires on every note or drum hit, from the buttons, from a retrigger, or from the loop. In PERCUSSION it also gates the bassline the single buttons play."
     - id: PulseOut2
-      name: Click*
+      name: Click
       type: pulse
       description: PERCUSSION - a click track, one blip per crotchet, running whenever the loop is, so there is something to record along to. MELODY - unused.
 
 controls:
   switch:
     up:
-      name: Glide / Record*
+      name: Glide / Record
       description: MELODY - fast glide between notes instead of stepping; the harmony voice glides with it. PERCUSSION - record and overdub into the loop; the loop keeps running, and because it stores events rather than audio, overdubbing never degrades what is already there.
     middle:
-      name: Step / Play*
+      name: Step / Play
       description: MELODY - pitch steps straight to each new note. PERCUSSION - the loop plays, and you can play along without recording.
     down:
       name: Calibrate
       description: "Calibration starts automatically at power-on, since the learned levels are never saved. HOLD for two seconds to start another at any time, or to abort one in progress - and in PERCUSSION this also ERASES the loop, which is the erase gesture. How it ends is on the LEDs: all six ramp up and fade means a clean calibration; the same fade with LEDs 4 and 5 flashing over it means two combinations are too close to separate, so nudge the Four Voltages knob and run it again; the two COLUMNS alternating fast for about a second and a half means it FAILED, which in practice means nothing is patched into CV In 1 - the previous calibration is kept either way."
     tap:
-      name: Retrigger / Capture
+      name: Retrigger Note
       description: "MELODY - re-fires the current note. PERCUSSION - re-strikes the BASS note the held single button is playing, rather than the last drum. A drum is easier to repeat by tapping its pair again, whereas the bassline has no other way to be struck twice at all, since a note only fires when the combination CHANGES - so holding one button gives you a single note and nothing more. This makes the switch a repeat key for the bass. During calibration, captures the combination you are holding."
   knobs:
     -
       main:
-        name: Macro / DJ Filter*
+        name: Envelopes / DJFilter
         description: MELODY - how long the note lasts, from a click to over five seconds, across both envelopes at once. PERCUSSION - a DJ filter, low-pass to the left, high-pass to the right, with a generous bypass at centre you can find by feel. Its movements are recorded into the loop.
       x:
-        name: Balance / Tempo*
-        description: MELODY - how that length is split between the filter and the loudness, morphing continuously between DARK (the filter shuts well before the note fades - plucks), BALANCED, and BRIGHT (the filter outlasts the amplitude so the note blooms - pads). PERCUSSION - tempo, 40 to 240 BPM, ignored while an external clock is running on Pulse In 1. Changing it re-times the pattern rather than pitching it.
+        name: Envelopes / Tempo
+        description: MELODY - how the 'filter' and 'loudness' envelopes (Audio1 and Audio 2) respond to MainKnob. PERCUSSION - tempo, 40 to 240 BPM, ignored while an external clock is running on Pulse In 1. Changing it re-times the pattern rather than pitching it.
       y:
-        name: Scale / Kit*
+        name: Scale / Kit
         description: "MELODY - one of twelve scales, ordered dark to bright from fully anticlockwise, shown on the LEDs as a bar while you turn it: Phrygian, Hirajoshi, Harmonic Minor, Natural Minor, Minor Pentatonic, m7 Arpeggio, Dorian, Major Pentatonic, Ionian (Major), Maj7 Arpeggio, Whole Tone, Chromatic. Because the ten combinations are ten DEGREES, the scale also sets the range - a four-note arpeggio spreads them over more than two octaves while Chromatic packs them into three quarters of one. PERCUSSION - the character of the whole kit at once, from lower and longer to higher and shorter, roughly half to double pitch and three decay steps either way. Applied when a voice is struck, so sweeping it never warps a sound that is already ringing - and its movements are RECORDED INTO THE LOOP alongside the filter, so a pattern can change its own kit character as it plays."
   leds:
     -

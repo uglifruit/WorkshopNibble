@@ -1,5 +1,22 @@
 # NIBBLE devlog
 
+## v1.11.3 — demo videos, and panel labels
+
+Two-part demo and walkthrough added. The registry's `demo-link` takes a single
+URL rather than a list, so Part 1 gets the playable thumbnail on the card's page
+and both parts are linked in the README, where matching YouTube URLs are
+embedded inline anyway.
+
+Panel labels tightened throughout — asterisks dropped, sockets named for what
+they do rather than which mode they belong to (`Retrigger / ClkIn`,
+`Envelope1 / Drums`, `Envelopes / DJFilter`).
+
+One label was inconsistent with the rest: CV Out 1 had become just "Pitch" while
+still carrying the PERCUSSION bassline its own description documents. Now
+`Pitch / Bass`, matching the dual-name pattern every other shared socket uses.
+
+---
+
 ## v1.11.2 — the collision warning was crying wolf
 
 Reported that combinations flagged with the LED 4+5 collision warning were then

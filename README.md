@@ -20,6 +20,14 @@ of a scale — or a lo-fi drum kit with a looper behind it.
 
 Four buttons is four bits is one nibble. Hence the name.
 
+## Watch it work
+
+A two-part demo and walkthrough — calibration, the hold-and-tap technique, and
+both modes played:
+
+- **Part 1** — https://youtu.be/te2GKfyd_0w
+- **Part 2** — https://youtu.be/mQxKP0NdALI
+
 ---
 
 ## Two cards in one
