@@ -299,6 +299,12 @@ half a bar and that half is replaced; the rest keeps whatever was there. A knob
 sitting still records nothing, so it can never flatten an earlier sweep just by
 being armed.
 
+Replacement uses a short **window** rather than an exact instant — about an
+eighth of a beat — because no two passes over a knob land on precisely the same
+moments. Anything within the window counts as "the same place" and gets
+replaced, so re-recording a sweep genuinely overwrites the old one instead of
+interleaving with it.
+
 ### Panel
 
 | Control | Does |

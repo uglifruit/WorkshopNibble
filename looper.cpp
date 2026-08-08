@@ -217,6 +217,20 @@ void Looper::RecordKnobs(bool filterMoving, int32_t filterKnob,
 	if (toneMoving)   RecordLane(kLaneTone,   toneKnob);
 }
 
+/// Is `tick` within the replace window of the playhead, the short way round?
+///
+/// The wrap matters: a sweep recorded across the loop boundary must still
+/// replace one recorded just before it, or the seam between passes is exactly
+/// where two sweeps survive together.
+bool Looper::NearPlayhead(uint16_t tick) const
+{
+	int32_t d = static_cast<int32_t>(tick) - static_cast<int32_t>(playHead_);
+	if (d >  kLoopTicks / 2) d -= kLoopTicks;
+	if (d < -kLoopTicks / 2) d += kLoopTicks;
+	if (d < 0) d = -d;
+	return d <= kKnobReplaceWindow;
+}
+
 void Looper::RecordLane(uint8_t lane, int32_t knob)
 {
 	if (lane >= kNumLanes) return;
@@ -232,13 +246,24 @@ void Looper::RecordLane(uint8_t lane, int32_t knob)
 
 	// Automation REPLACES itself rather than accumulating. A knob pass on top of
 	// an earlier one should read as "I redid that sweep", not as two sweeps
-	// fighting on the same tick — and without this, every pass adds another
-	// batch of events until the buffer is full and drum hits start being
-	// dropped. Only THIS lane's events are dropped, so automating Y does not
-	// erase a filter sweep sitting on the same tick.
+	// fighting for adjacent ticks.
+	//
+	// The replace test is a WINDOW, not an exact tick match — see
+	// kKnobReplaceWindow. An exact match replaced essentially nothing, because
+	// a second pass samples on a different phase from the first and the two
+	// grids never coincide.
+	//
+	// Only THIS lane is touched, so re-recording the filter never disturbs a Y
+	// sweep lying underneath it.
 	for (int i = 0; i < count_; )
 	{
-		if (events_[i].what == what && FireTick(events_[i]) == playHead_)
+		// Same lane, near the playhead, and NOT part of the sweep currently
+		// being laid down. Without that last condition the window eats its own
+		// tail: every new event falls inside the next one's window, and a full
+		// re-record collapses to a single surviving event.
+		if (SameKind(events_[i].what, what)
+		 && !IsThisPass(events_[i].what)
+		 && NearPlayhead(FireTick(events_[i])))
 			Remove(i);
 		else
 			i++;
@@ -248,7 +273,7 @@ void Looper::RecordLane(uint8_t lane, int32_t knob)
 
 	LoopEvent ev;
 	ev.tick  = playHead_;
-	ev.what  = what;
+	ev.what  = static_cast<uint8_t>(what | kThisPass);
 	ev.value = static_cast<uint8_t>(knob >> 4);   // 0..4095 -> 0..255
 	Insert(ev);
 }

@@ -1,5 +1,41 @@
 # NIBBLE devlog
 
+## v1.10.1 — re-recording a sweep never actually replaced it
+
+Asked for a wider window on overwriting knob automation, on the reasoning that
+two passes will never land on exactly the same instant. That was right, and the
+arithmetic is worse than "rarely": automation samples every 8 ticks, a second
+pass starts on a different phase, and of **96 samples per lane per loop, exactly
+zero** coincide with an existing event.
+
+So the replace test — an exact tick match — replaced nothing, ever. Both sweeps
+survived, interleaved, and playback alternated between two different values on
+adjacent ticks. That is what a re-recorded sweep sounded like.
+
+`kKnobReplaceWindow` is 12 ticks, slightly wider than the 8-tick sample
+interval so a pass always subsumes the one beneath it however the two line up.
+About 125ms at 120bpm, which is also roughly the resolution a hand can place a
+move at. It wraps the loop boundary properly, since the seam between passes is
+exactly where two sweeps would otherwise both survive.
+
+### The window ate its own tail
+
+First attempt left **one** event after a full re-record instead of 96: each new
+event fell inside the next one's window and was deleted by it.
+
+Events written during the pass in progress are now tagged (`kThisPass`, a spare
+bit in `what` — checked against the voice indices and the lane bit for
+collisions). The window clears earlier passes only. `ArmKnobs()` strips the tag
+from everything, so "this pass" always means the one being recorded now.
+
+Four existing tests failed on this and all four were stale assumptions rather
+than breakage: they recorded repeatedly at one tick *within a single pass* and
+expected each write to replace the last. Protecting the current pass is exactly
+what stops the window eating its own sweep, so the tests were rewritten to arm
+between passes.
+
+---
+
 ## v1.10.0 — the knob is an override, not a negotiation
 
 ### Why handing control back was glitchy

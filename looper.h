@@ -37,8 +37,26 @@ constexpr uint8_t kKnobEvent = 0x80;
 /// The automated knobs. Main is the DJ filter; Y is the kit character.
 enum KnobLane : uint8_t { kLaneFilter = 0, kLaneTone = 1, kNumLanes = 2 };
 
+/// Marks an automation event as belonging to the CURRENT recording pass.
+///
+/// The replace window would otherwise eat the sweep it is laying down: each new
+/// event falls inside the next one's window, so a full re-record ended up with
+/// a single surviving event instead of ninety-six. Tagging lets the sweep clear
+/// what came before without clearing itself.
+///
+/// The tag is cleared from every event when recording is armed, so "this pass"
+/// always means the one in progress.
+constexpr uint8_t kThisPass = 0x40;
+
 static inline bool IsKnobEvent(uint8_t what) { return (what & kKnobEvent) != 0; }
 static inline uint8_t LaneOf(uint8_t what)   { return what & (kNumLanes - 1); }
+static inline bool IsThisPass(uint8_t what)  { return (what & kThisPass) != 0; }
+
+/// Compare two event types ignoring the pass tag.
+static inline bool SameKind(uint8_t a, uint8_t b)
+{
+	return static_cast<uint8_t>(a & ~kThisPass) == static_cast<uint8_t>(b & ~kThisPass);
+}
 
 /// Four bars of 4/4 at 48 ticks per beat. 48 divides by 2, 3, 4, 6, 8, 12 and
 /// 16, so every useful subdivision (and triplets) lands on an exact tick.
@@ -89,6 +107,21 @@ static_assert(kClockTimeout > kClockMaxGap,
 /// automation density at ~6 events/beat worst case and usually near zero,
 /// since an event is only emitted when the knob has actually moved.
 constexpr int kKnobSampleTicks = 8;
+
+/// How near an existing automation event has to be, in ticks, for a new one to
+/// REPLACE it rather than sit alongside it.
+///
+/// This has to be a window, not an exact match, and the arithmetic says why: a
+/// second pass over the same sweep samples on a different phase from the first,
+/// so of 96 samples per lane per loop, EXACTLY ZERO land on an existing tick.
+/// With an exact test nothing was ever replaced — both sweeps survived,
+/// interleaved, and playback alternated between two different values on
+/// adjacent ticks. That is what a re-recorded sweep sounded like.
+///
+/// Slightly wider than the sample interval, so a pass always subsumes the one
+/// beneath it however the two happen to line up. At 120bpm this is ~125ms, which
+/// is also about the resolution a hand can place a knob move at anyway.
+constexpr int kKnobReplaceWindow = kKnobSampleTicks + 4;   // 12 ticks
 
 class Looper
 {
@@ -157,6 +190,10 @@ public:
 	void ArmKnobs()
 	{
 		for (int i = 0; i < kNumLanes; i++) lastKnob_[i] = -9999;
+		// Everything already in the loop belongs to a PREVIOUS pass, so it is
+		// all fair game for the replace window from here on.
+		for (int i = 0; i < count_; i++)
+			events_[i].what = static_cast<uint8_t>(events_[i].what & ~kThisPass);
 	}
 
 	/// Fire every event scheduled for the current tick.
@@ -196,6 +233,7 @@ private:
 	void Insert(const LoopEvent &ev);
 	void Remove(int i);
 	void RecordLane(uint8_t lane, int32_t knob);
+	bool NearPlayhead(uint16_t tick) const;
 
 	/// The tick at which an event actually sounds, after quantisation. The
 	/// event array is sorted by THIS, not by the raw stored tick — see the

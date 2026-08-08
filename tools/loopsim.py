@@ -24,6 +24,8 @@ NUM_VOICES = 12          # the looper stores VOICES, not key combos
 MAX_EVENTS = 512
 MAX_KNOB_EVENTS = 192
 KNOB_EVENT = 0x80
+THIS_PASS = 0x40
+KNOB_REPLACE_WINDOW = 12
 NUM_LANES = 2
 LANE_FILTER, LANE_TONE = 0, 1
 
@@ -34,6 +36,14 @@ def is_knob(what):
 
 def lane_of(what):
     return what & (NUM_LANES - 1)
+
+
+def is_this_pass(what):
+    return (what & THIS_PASS) != 0
+
+
+def same_kind(a, b):
+    return (a & ~THIS_PASS) == (b & ~THIS_PASS)
 CTRL_RATE = 3000
 CLOCK_MAX_GAP = 2 * CTRL_RATE
 CLOCK_TIMEOUT = 3 * CTRL_RATE
@@ -150,23 +160,38 @@ class Looper:
         if i < self.cursor and self.cursor > 0:
             self.cursor -= 1
 
-    def record_filter_at(self, value, lane=LANE_FILTER):
-        """Automation REPLACES itself on the same tick rather than piling up.
+    def near_playhead(self, tick):
+        d = tick - self.play_head
+        if d > LOOP_TICKS // 2:
+            d -= LOOP_TICKS
+        if d < -LOOP_TICKS // 2:
+            d += LOOP_TICKS
+        return abs(d) <= KNOB_REPLACE_WINDOW
 
-        Only THIS lane's events are dropped, so automating Y must not erase a
-        filter sweep sitting on the same tick.
+    def arm_knobs(self):
+        """Everything already recorded belongs to a previous pass."""
+        for e in self.events:
+            e[1] &= ~THIS_PASS
+
+    def record_filter_at(self, value, lane=LANE_FILTER):
+        """Automation REPLACES itself within a WINDOW, not on an exact tick.
+
+        Exact matching replaced nothing: a second pass samples on a different
+        phase and the grids never coincide. The pass tag stops the window
+        eating the sweep it is currently laying down.
         """
         what = KNOB_EVENT | lane
         i = 0
         while i < len(self.events):
-            if (self.events[i][1] == what
-                    and fire_tick(self.events[i]) == self.play_head):
+            e = self.events[i]
+            if (same_kind(e[1], what) and not is_this_pass(e[1])
+                    and self.near_playhead(fire_tick(e))):
                 self.remove(i)
             else:
                 i += 1
         if self.knob_count >= MAX_KNOB_EVENTS:
             return
-        self.insert([self.play_head, what, value])
+        self.insert([self.play_head, what | THIS_PASS, value])
 
     def record_hit(self, voice, vel=100):
         # A hit the player just performed outranks stale automation.
@@ -395,12 +420,18 @@ def test_automation_cannot_starve_hits():
 
 
 def test_automation_replaces_on_same_tick():
-    """A second knob pass over the same spot should read as 'I redid that
-    sweep', not as two sweeps fighting on one tick."""
+    """A second knob PASS over the same spot replaces the first.
+
+    Note the arm_knobs() between passes. Events from the pass in progress are
+    deliberately protected from the replace window - without that the window
+    eats the sweep it is laying down. So "replace" means "a later pass replaces
+    an earlier one", not "every sample replaces the previous sample".
+    """
     lp = Looper()
     lp.set_tempo_bpm(120)
-    lp.play_head = 96
     for v in (10, 20, 30, 40):
+        lp.arm_knobs()
+        lp.play_head = 96
         lp.record_filter_at(v)
 
     at96 = [e for e in lp.events
@@ -420,13 +451,14 @@ def test_lanes_are_independent():
     lp.play_head = 96
     lp.record_filter_at(100, LANE_FILTER)
     lp.record_filter_at(200, LANE_TONE)
+    lp.arm_knobs()
 
     at96 = [e for e in lp.events if is_knob(e[1]) and fire_tick(e) == 96]
     check("lanes: both survive on the same tick", len(at96), 2)
     lanes = sorted(lane_of(e[1]) for e in at96)
     check("lanes: one of each", lanes, [LANE_FILTER, LANE_TONE])
 
-    # And each still replaces ITSELF.
+    # And each still replaces ITSELF on a later pass.
     lp.record_filter_at(150, LANE_FILTER)
     at96 = [e for e in lp.events if is_knob(e[1]) and fire_tick(e) == 96]
     check("lanes: a lane still replaces its own event", len(at96), 2)
@@ -518,6 +550,58 @@ def test_clock_locks_across_range():
     check("clock: locks across 30-240 BPM", bad, [])
 
 
+def test_rerecording_a_sweep_replaces_it():
+    """A second pass over the same knob must SUBSUME the first, not interleave.
+
+    The replace test used to be an exact tick match, and a second pass samples
+    on a different phase from the first - so of 96 samples per loop, exactly
+    zero landed on an existing event. Both sweeps survived and playback
+    alternated between two different values on adjacent ticks.
+
+    The window fixes that, and the pass tag stops the window eating the sweep
+    it is laying down - without it a full re-record collapsed to one event.
+    """
+    lp = Looper()
+    lp.set_tempo_bpm(120)
+
+    for t in range(0, LOOP_TICKS, 8):
+        lp.play_head = t
+        lp.record_filter_at(100)
+    first = len([e for e in lp.events if is_knob(e[1])])
+    check("sweep: first pass records a full lane", first, 96)
+
+    lp.arm_knobs()
+    for t in range(3, LOOP_TICKS, 8):        # a DIFFERENT phase
+        lp.play_head = t
+        lp.record_filter_at(200)
+
+    knobs = [e for e in lp.events if is_knob(e[1])]
+    check("sweep: a second pass does not double the events",
+          len(knobs) <= 100, True)
+    stale = [e for e in knobs if e[2] == 100]
+    check("sweep: nothing from the first pass survives", stale, [])
+    print("          %d events after re-recording (was %d)" % (len(knobs), first))
+
+
+def test_partial_rerecord_keeps_the_rest():
+    """Sweeping half a bar must replace that half and leave the rest."""
+    lp = Looper()
+    lp.set_tempo_bpm(120)
+    for t in range(0, LOOP_TICKS, 8):
+        lp.play_head = t
+        lp.record_filter_at(100)
+
+    lp.arm_knobs()
+    for t in range(200, 400, 8):
+        lp.play_head = t
+        lp.record_filter_at(200)
+
+    outside = [e for e in lp.events
+               if is_knob(e[1]) and (e[0] < 180 or e[0] > 420)]
+    check("sweep: untouched parts of the bar keep their automation",
+          all(e[2] == 100 for e in outside) and len(outside) > 50, True)
+
+
 def test_clear_empties():
     lp = Looper()
     lp.set_tempo_bpm(120)
@@ -543,6 +627,8 @@ def main():
     test_automation_cannot_starve_hits()
     test_automation_replaces_on_same_tick()
     test_lanes_are_independent()
+    test_rerecording_a_sweep_replaces_it()
+    test_partial_rerecord_keeps_the_rest()
     test_live_hit_does_not_replay_same_pass()
     test_external_clock()
     test_clock_locks_across_range()
