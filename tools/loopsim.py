@@ -102,7 +102,7 @@ class Looper:
         self.events[i] = ev
         if is_knob(ev[1]):
             self.knob_count += 1
-        if i < self.cursor:
+        if i <= self.cursor:
             self.cursor += 1
 
     def remove(self, i):
@@ -398,6 +398,39 @@ def test_lanes_are_independent():
     check("lanes: ...with the latest value", filt[2], 150)
 
 
+def test_live_hit_does_not_replay_same_pass():
+    """THE DOUBLING. A hit recorded at the playhead must not fire again on the
+    pass that recorded it.
+
+    main.cpp records the hit and then calls Fire() later in the SAME control
+    tick. With the cursor left pointing at the newly inserted event, the walk
+    landed on it and played it back on top of the live hit the player had
+    already heard: two sounds a few milliseconds apart, and two voices consumed
+    per hit instead of one. A few overdub passes then exhausted the polyphony,
+    which is what made the loop appear to silence itself.
+    """
+    lp = Looper()
+    lp.set_tempo_bpm(120)
+    lp.play_head = 0
+    lp.cursor = 0
+
+    fired = []
+    ticks = 0
+    while ticks < 40:
+        if lp.advance():
+            ticks += 1
+            if ticks == 10:
+                lp.record_hit(0)          # played live at this instant
+            for ev in lp.fire():
+                fired.append(ev[0])
+
+    check("record: a live hit does not replay on the same pass", fired, [])
+
+    # ...but it MUST come back on the next pass.
+    nxt = [c for (_t, c) in run_pass(lp)]
+    check("record: it does play on the next pass", nxt, [0])
+
+
 def test_clear_empties():
     lp = Looper()
     lp.set_tempo_bpm(120)
@@ -423,6 +456,7 @@ def main():
     test_automation_cannot_starve_hits()
     test_automation_replaces_on_same_tick()
     test_lanes_are_independent()
+    test_live_hit_does_not_replay_same_pass()
     test_events_stay_sorted()
     test_clear_empties()
     print()

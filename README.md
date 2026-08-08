@@ -240,26 +240,32 @@ at once — every number below is a live variable, not a recording.
 |-------|-------|------|--------|-------|
 | kick | 62 → 45 Hz | 6 ms | 182 ms | 100% |
 | kick deep | 50 → 38 Hz | 12 ms | 331 ms | 78% |
-| snare | 190 → 150 Hz | 3 ms | 40 ms | 100% |
-| snare snappy | 230 → 180 Hz | 3 ms | 86 ms | 90% |
-| closed hat | 6000 Hz | — | 46 ms | 86% |
-| hi-hat metallic | 7600 Hz | — | 23 ms | 78% |
-| open hi-hat | 7600 Hz | — | 153 ms | 43% |
-| crash | 5200 Hz | — | 704 ms | 10% |
-| cowbell | 800 Hz | — | 178 ms | 90% |
-| tom 1 "pew" | 420 → 90 Hz | 49 ms | 178 ms | 90% |
-| syn tom 2 | 300 → 110 Hz | 97 ms | 166 ms | 70% |
-| syn drum 3 | 360 → 120 Hz | 49 ms | 86 ms | 78% |
+| snare | 190 → 150 Hz | 3 ms | 36 ms | 74% |
+| snare snappy | 230 → 180 Hz | 3 ms | 81 ms | 66% |
+| closed hat | 6000 Hz | — | 17 ms | 27% |
+| hi-hat metallic | 7600 Hz | — | 9 ms | 31% |
+| open hi-hat | 7600 Hz | — | 60 ms | 18% |
+| crash | 5200 Hz | — | 343 ms | 9% |
+| cowbell | 1500 Hz | — | 57 ms | 16% |
+| tom 1 "pew" | 420 → 90 Hz | 49 ms | 156 ms | 47% |
+| syn tom 2 | 300 → 110 Hz | 49 ms | 149 ms | 43% |
+| syn drum 3 | 360 → 120 Hz | 49 ms | 76 ms | 47% |
 
 **Pitch** is where the body starts and, where it sweeps, where it lands.
 **Fall** is how long that sweep takes — the exponential drop that makes the toms
 read as Simmons-style rather than as short bass notes. **Length** is how long
-the voice stays audible. **Level** is its weight in the mix, and it is not
-cosmetic: peak amplitude stops being a proxy for loudness once decay times
-differ by twenty-fold. The crash sits at 10% precisely *because* it is the
-longest voice — at full scale it delivered thirteen times a kick's total energy
-and buried the kit. It now lands at 0.73×, deliberately under the beat rather
-than level with it.
+the voice stays audible. **Level** is its weight in the mix, and the numbers
+look lopsided for a reason: they are set by **perceived** loudness, not by
+amplitude.
+
+Two effects drive them. The ear is roughly 24 dB more sensitive at 1 kHz than at
+55 Hz, so a bright voice needs far less level than a kick to sit alongside it —
+which is why the cowbell is 16% and the kick 100%. And the ear integrates over
+time, so a long voice needs less again: the crash is the longest thing here and
+sits at 9%.
+
+A rough rule if you edit the table in `drums.cpp`: an octave higher wants about
+half the level, and twice as long wants about two thirds.
 
 The three cymbal voices — **hi-hat metallic**, **open hi-hat** and **crash** —
 are *ring-modulated* against a second oscillator at a deliberately non-integer

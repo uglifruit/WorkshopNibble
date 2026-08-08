@@ -1,5 +1,53 @@
 # NIBBLE devlog
 
+## v1.9.0 — recording played every hit twice
+
+### THE bug behind "recording silences the loop"
+
+Three versions of this have now been chased, and this was the real one. The
+clue was the right one: *"is it playing sounds twice when I'm recording?"*
+
+It was. `FireCombo()` records a hit at the current playhead, and `DrumsControl()`
+calls `Fire()` **later in the same control tick**. The cursor was left pointing
+*at* the event just inserted, so the playback walk landed on it immediately and
+played it again — on top of the live hit already heard.
+
+Two consequences, and the second is the one that was being reported:
+
+- a flam, two hits a few milliseconds apart;
+- **two voices consumed per hit instead of one**, so the polyphony ran out in
+  half the passes and the loop appeared to silence itself.
+
+The fix is one character: `if (i < cursor_)` became `if (i <= cursor_)`.
+Inserting *at* the cursor must step it past, not just inserting before it.
+`tools/loopsim.py` now asserts that a hit recorded on a pass does not sound
+again until the next one.
+
+Worth recording why this took three attempts: the two earlier fixes (the filter
+gate in v1.3, the arm-time write in v1.6) were both real bugs with the same
+symptom, so each one seemed to explain it. The tell that something remained was
+"even when I haven't touched the filter".
+
+### Levels are set by perceived loudness now
+
+The cowbell was reported as very loud while measuring the *same energy as the
+kick*, which is what finally showed the metric was wrong. The ear is about 24 dB
+more sensitive at 800 Hz than at 55 Hz, so equal energy is nowhere near equal
+loudness once pitches differ — and the cowbell was a pure tone sitting in the
+most sensitive band.
+
+That also explains why the crash kept coming back too loud across three rounds
+of "reduce it": each reduction was measured against an energy target that was
+itself far too generous for a bright, long voice.
+
+Levels are now set from an A-weighted model with a duration term. The kit moves
+a long way: cowbell 90% → 16% (and up to 1500 Hz, a real cowbell's register, as
+asked), crash 20% → 9% with a shorter decay, hats to 18–31%, toms to ~45%. The
+table in `drums.cpp` carries the rule of thumb — an octave higher wants about
+half the level, twice as long about two thirds.
+
+---
+
 ## v1.8.1 — the LED flash lit the wrong pad
 
 Reported from KEYS: a single press flashes the right LED, but B+C flashes

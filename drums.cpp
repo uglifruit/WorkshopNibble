@@ -25,6 +25,24 @@ namespace nib {
 /// change what an existing loop plays.
 ///
 /// Index order is the display order, and matches kVoiceName below.
+/// LEVELS are set by PERCEIVED loudness, not by energy or by peak.
+///
+/// Two corrections were needed, and both came from voices being reported as too
+/// loud despite the numbers looking balanced:
+///
+///  1. Equal ENERGY is not equal loudness once pitches differ. The ear is about
+///     24dB more sensitive at 800Hz than at 55Hz, so the cowbell — a pure tone
+///     sitting right in that band — was the loudest thing in the kit while
+///     measuring the same as the kick. It is now 1500Hz (a real cowbell's
+///     register, and where it was asked to be) at 40/256.
+///  2. A long voice needs to be quieter still, because the ear integrates. The
+///     crash is the extreme case and has been reported loud three times: it is
+///     now 22/256 AND a shorter decay, since level alone could not fix it
+///     without making the transient inaudible.
+///
+/// Rough rule for editing this table: a voice an octave higher wants roughly
+/// half the level; a voice twice as long wants roughly two thirds.
+///
 /// Pitches are written as HzToInc(...) so the table can be READ as frequencies
 /// and checked against what a drum should be. The first version of this kit
 /// carried raw increments inherited from another card whose accumulator was a
@@ -35,21 +53,16 @@ const DrumSpec kVoices[kNumVoices] = {
 	//  from        to        decay noise  mix  fall metal level
 	{ HzToInc(62), HzToInc(45),  11,   0,    0,   7,   0,  256 },  // 0  kick
 	{ HzToInc(50), HzToInc(38),  12,   0,    0,   8,   0,  200 },  // 1  kick deep
-	{ HzToInc(190),HzToInc(150),  9,   7,  140,   6,   0,  256 },  // 2  snare
-	{ HzToInc(230),HzToInc(180),  8,  10,  200,   6,   0,  230 },  // 3  snare snappy
-	{ HzToInc(6000),HzToInc(6000),9,   9,  256,   0,   0,  220 },  // 4  closed hat
-	{ HzToInc(7600),HzToInc(7600),8,   8,  256,   0,   1,  200 },  // 5  hi-hat metallic
-	{ HzToInc(7600),HzToInc(7600),11, 11,  256,   0,   1,  110 },  // 6  open hi-hat
-	// The crash has now been reported as too loud twice. Peak amplitude is a bad
-	// guide here: at 0.9 seconds it sustains through everything else, so it does
-	// not need to match a kick's level — it needs to sit UNDER it. 26/256 puts
-	// its total energy at 0.73x a kick, deliberately below parity rather than
-	// close to it, because a wash that competes with the beat is the complaint.
-	{ HzToInc(5200),HzToInc(5200),14, 14,  256,   0,   1,   26 },  // 7  crash
-	{ HzToInc(800),HzToInc(800), 11,   0,    0,   0,   0,  230 },  // 8  cowbell
-	{ HzToInc(420),HzToInc(90),  11,   0,    0,  10,   0,  230 },  // 9  tom 1 "pew"
-	{ HzToInc(300),HzToInc(110), 11,   8,   20,  11,   0,  180 },  // 10 syn tom 2
-	{ HzToInc(360),HzToInc(120), 10,   6,   40,  10,   0,  200 },  // 11 syn drum 3
+	{ HzToInc(190),HzToInc(150),  9,   7,  140,   6,   0,  190 },  // 2  snare
+	{ HzToInc(230),HzToInc(180),  8,  10,  200,   6,   0,  170 },  // 3  snare snappy
+	{ HzToInc(6000),HzToInc(6000),8,   8,  256,   0,   0,   70 },  // 4  closed hat
+	{ HzToInc(7600),HzToInc(7600),7,   7,  256,   0,   1,   80 },  // 5  hi-hat metallic
+	{ HzToInc(7600),HzToInc(7600),10, 10,  256,   0,   1,   45 },  // 6  open hi-hat
+	{ HzToInc(5200),HzToInc(5200),13, 13,  256,   0,   1,   22 },  // 7  crash
+	{ HzToInc(1500),HzToInc(1500),10,  0,    0,   0,   0,   40 },  // 8  cowbell
+	{ HzToInc(420),HzToInc(90),  11,   0,    0,  10,   0,  120 },  // 9  tom 1 "pew"
+	{ HzToInc(300),HzToInc(110), 11,   8,   20,  10,   0,  110 },  // 10 syn tom 2
+	{ HzToInc(360),HzToInc(120), 10,   6,   40,  10,   0,  120 },  // 11 syn drum 3
 };
 
 /// Which voice each (shift, tap) gesture plays. This is the ONLY place the

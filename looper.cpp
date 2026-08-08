@@ -153,10 +153,20 @@ void Looper::Insert(const LoopEvent &ev)
 	count_++;
 	if (IsKnobEvent(ev.what)) knobCount_++;
 
-	// The new event may sit before the cursor, which would make the cursor
-	// point at the wrong place for the rest of this pass. Nudging it keeps the
-	// invariant "cursor_ is the first event at or after playHead_".
-	if (static_cast<uint16_t>(i) < cursor_) cursor_++;
+	// Keep the cursor pointing at the same event it was pointing at.
+	//
+	// Two cases, and getting the second wrong is what made recording DOUBLE
+	// every hit. Inserting BEFORE the cursor shifts everything up, so the
+	// cursor must move with it. Inserting AT the cursor — which is what a hit
+	// played at the current playhead does — must ALSO step it past, or the
+	// walk in Fire() lands on the event that was just recorded and plays it
+	// back immediately, on top of the live hit the player already heard.
+	//
+	// That doubling was audible as a flam and, worse, consumed two voices per
+	// hit instead of one, so a few overdub passes exhausted the polyphony and
+	// the loop appeared to silence itself. An event recorded on this pass must
+	// not sound again until the NEXT one.
+	if (static_cast<uint16_t>(i) <= cursor_) cursor_++;
 }
 
 void Looper::RecordHit(int8_t voice, uint8_t velocity)

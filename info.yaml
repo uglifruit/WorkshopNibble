@@ -3,7 +3,7 @@ Name: NIBBLE
 short-description: Turns the Four Voltages module into a ten-note keyboard, or a shift-and-tap drum looper
 Language: C++ (ComputerCard)
 Creator: Andy Jenkinson (uglifruit)
-Version: "1.8.1"
+Version: "1.9.0"
 Status: Released
 License: CC-BY-4.0
 repository: https://github.com/uglifruit/WorkshopNibble
@@ -17,7 +17,7 @@ contact:
 
 uf2:
   - path: UF2/nibble.uf2
-    name: NIBBLE 1.8.1
+    name: NIBBLE 1.9.0
 
 tags:
   - keyboard
@@ -72,7 +72,8 @@ summary: |
 
   THE KIT, all synthesised rather than sampled, which is why one knob can
   reshape the whole thing: kick (62Hz, swept), deep kick (50Hz), snare (190Hz),
-  snappy snare (230Hz), closed hat, metallic hi-hat, open hi-hat, crash, cowbell,
+  snappy snare (230Hz), closed hat, metallic hi-hat, open hi-hat, crash,
+  cowbell (1500Hz),
   and three Simmons-style toms whose pitch falls exponentially rather than
   linearly - the "pew" that a linear sweep cannot produce.<br><br>
 
