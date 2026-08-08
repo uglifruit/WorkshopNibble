@@ -257,6 +257,21 @@ public:
 			}
 		}
 
+		// ---- Pulse edges: LATCH here, at the full 48kHz ------------------
+		//
+		// PulseIn1RisingEdge() is true for exactly ONE sample. Polling it from
+		// the 3kHz control tick therefore caught it only when the edge happened
+		// to land on the 1-in-16 sample the tick ran on — about 6% of the time.
+		//
+		// That is why the external clock never took over: ClockPulse() needs two
+		// consecutive edges to measure an interval, and at 120bpm it was seeing
+		// roughly one edge every eight seconds, well past its sanity limit. The
+		// KEYS retrigger was silently dropping most of its triggers for the same
+		// reason.
+		//
+		// Latch it at audio rate and let the control tick consume the flag.
+		if (PulseIn1RisingEdge()) pulse1Edge_ = true;
+
 		// ---- Control tick ------------------------------------------------
 		//
 		// NOTE: this runs INLINE, inside a DMA interrupt handler. The divider
@@ -309,8 +324,9 @@ private:
 		// the X knob for as long as it keeps arriving. A drum looper wants to
 		// follow the rest of the rack far more than it wants a second way to
 		// re-fire a hit.
-		if (PulseIn1RisingEdge())
+		if (pulse1Edge_)
 		{
+			pulse1Edge_ = false;
 			if (boot_ == BootMode::Drums) loop_.ClockPulse();
 			else                          Retrigger();
 		}
@@ -1073,6 +1089,10 @@ private:
 	// outputs
 	int32_t gateTimer_    = 0;
 	int32_t clickTimer_   = 0;
+
+	/// Set at 48kHz when a Pulse In 1 edge arrives, consumed by the 3kHz
+	/// control tick. See ProcessSample for why this cannot be polled directly.
+	bool    pulse1Edge_   = false;
 
 	// DRUMS bass line: the pitch the last single button asked for.
 	uint8_t bassNote_ = kBassRoot;

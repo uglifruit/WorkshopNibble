@@ -35,6 +35,8 @@ def is_knob(what):
 def lane_of(what):
     return what & (NUM_LANES - 1)
 CTRL_RATE = 3000
+CLOCK_MAX_GAP = 2 * CTRL_RATE
+CLOCK_TIMEOUT = 3 * CTRL_RATE
 BPM_MIN, BPM_MAX = 40, 240
 Q16 = 65536
 
@@ -73,9 +75,43 @@ class Looper:
         self.tick_inc = 0
         self.last_x = -9999
         self.knob_count = 0
+        self.since_clock = 0
+        self.clock_timeout = 0
 
     def set_tempo_bpm(self, bpm):
         self.tick_inc = (bpm * TICKS_PER_BEAT * Q16) // (60 * CTRL_RATE)
+
+    # --- external clock ---------------------------------------------------
+
+    def set_tempo_knob(self, x):
+        """Mirrors Looper::SetTempo. Ignored while clocked, and it FORGETS the
+        knob position while clocked so the tempo snaps back when it releases."""
+        if self.clocked():
+            self.last_x = -9999
+            return
+        if self.last_x >= 0 and abs(x - self.last_x) < 64:
+            return
+        self.last_x = x
+        bpm = BPM_MIN + ((x * (BPM_MAX - BPM_MIN)) >> 12)
+        self.set_tempo_bpm(bpm)
+
+    def clocked(self):
+        return self.clock_timeout > 0
+
+    def clock_pulse(self):
+        if 0 < self.since_clock <= CLOCK_MAX_GAP:
+            self.tick_inc = (TICKS_PER_BEAT * Q16) // self.since_clock
+        self.since_clock = 0
+        self.clock_timeout = CLOCK_TIMEOUT
+
+    def tick_clock(self):
+        if self.since_clock < CTRL_RATE * 8:
+            self.since_clock += 1
+        if self.clock_timeout > 0:
+            self.clock_timeout -= 1
+
+    def bpm(self):
+        return self.tick_inc * 60 * CTRL_RATE / (Q16 * TICKS_PER_BEAT)
 
     def advance(self):
         if self.tick_inc <= 0:
@@ -431,6 +467,57 @@ def test_live_hit_does_not_replay_same_pass():
     check("record: it does play on the next pass", nxt, [0])
 
 
+def test_external_clock():
+    """Pulse In 1 must override the X knob, and hand it back when it stops.
+
+    Two bugs lived here. The edge was polled from the 3kHz control tick while
+    ComputerCard only holds it true for one 48kHz sample, so ~94% of pulses
+    were dropped and the clock could essentially never lock - it is latched at
+    audio rate now. And SetTempo tracked the knob position WHILE clocked, so
+    when the clock stopped the knob compared equal, read as unmoved, and the
+    tempo stayed where the clock left it.
+    """
+    lp = Looper()
+    for _ in range(200):
+        lp.set_tempo_knob(4095)
+        lp.tick_clock()
+    check("clock: knob alone sets max tempo", round(lp.bpm()), 239)
+
+    per = int(CTRL_RATE * 60 / 90)
+    for _ in range(6):
+        for _ in range(per):
+            lp.set_tempo_knob(4095)
+            lp.tick_clock()
+        lp.clock_pulse()
+    check("clock: a 90 BPM clock overrides the knob", round(lp.bpm()), 90)
+
+    n = 0
+    while lp.clocked() and n < CLOCK_TIMEOUT + 100:
+        lp.set_tempo_knob(4095)
+        lp.tick_clock()
+        n += 1
+    lp.set_tempo_knob(4095)
+    check("clock: reverts ~3s after the last pulse",
+          abs(n / CTRL_RATE - 3.0) < 0.05, True)
+    check("clock: ...and goes back to the KNOB tempo", round(lp.bpm()), 239)
+
+
+def test_clock_locks_across_range():
+    """The timeout must be longer than the longest measurable gap, or a slow
+    clock times out before its next pulse and can never lock at all."""
+    bad = []
+    for bpm in (30, 40, 60, 120, 240):
+        lp = Looper()
+        per = int(CTRL_RATE * 60 / bpm)
+        for _ in range(3):
+            for _ in range(per):
+                lp.tick_clock()
+            lp.clock_pulse()
+        if abs(lp.bpm() - bpm) > 1:
+            bad.append((bpm, round(lp.bpm())))
+    check("clock: locks across 30-240 BPM", bad, [])
+
+
 def test_clear_empties():
     lp = Looper()
     lp.set_tempo_bpm(120)
@@ -457,6 +544,8 @@ def main():
     test_automation_replaces_on_same_tick()
     test_lanes_are_independent()
     test_live_hit_does_not_replay_same_pass()
+    test_external_clock()
+    test_clock_locks_across_range()
     test_events_stay_sorted()
     test_clear_empties()
     print()

@@ -3,7 +3,7 @@ Name: NIBBLE
 short-description: Turns the Four Voltages module into a ten-note keyboard, or a shift-and-tap drum looper
 Language: C++ (ComputerCard)
 Creator: Andy Jenkinson (uglifruit)
-Version: "1.9.0"
+Version: "1.9.1"
 Status: Released
 License: CC-BY-4.0
 repository: https://github.com/uglifruit/WorkshopNibble
@@ -17,7 +17,7 @@ contact:
 
 uf2:
   - path: UF2/nibble.uf2
-    name: NIBBLE 1.9.0
+    name: NIBBLE 1.9.1
 
 tags:
   - keyboard
@@ -98,7 +98,7 @@ panel:
     - id: PulseIn1
       name: Retrigger / Clock*
       type: pulse
-      description: KEYS - re-fires the current note without changing it, which is how you play repeated notes. DRUMS - an external clock at one pulse per beat, which takes over from Knob X for as long as it keeps arriving and hands back about three seconds after it stops. It nudges into phase rather than snapping, so locking to a clock never stutters the pattern.
+      description: KEYS - re-fires the current note without changing it, which is how you play repeated notes. DRUMS - an external clock at one pulse per beat. It OVERRIDES Knob X for as long as pulses keep arriving and hands the tempo back about three seconds after they stop, snapping to wherever the knob is then pointing. Locks anywhere from 30 to 240 BPM, and nudges into phase rather than snapping, so locking on never stutters the pattern.
     - id: PulseIn2
       name: Unused
       type: pulse

@@ -352,10 +352,11 @@ plays back.
 Hits are quantised to 1/16 on playback; filter sweeps deliberately are not.
 Punching in with the switch does not reset the loop position.
 
-**Patch a clock into Pulse In 1** and the loop follows it — one pulse per beat,
-taking over from the X knob for as long as it keeps arriving, and handing back
-about three seconds after it stops. It nudges into phase rather than snapping,
-so locking to an external clock never stutters the pattern.
+**Patch a clock into Pulse In 1** and the loop follows it — one pulse per beat.
+It **overrides the X knob** for as long as pulses keep arriving, and hands the
+tempo back about three seconds after they stop, snapping to wherever the knob is
+pointing by then. It locks anywhere from 30 to 240 BPM, and nudges into phase
+rather than snapping, so locking on never stutters the pattern.
 
 To **erase**, hold the switch for two seconds to re-enter calibration. That is
 the erase gesture: every other control is spoken for while playing, and the four

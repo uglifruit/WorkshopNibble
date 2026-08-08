@@ -1,5 +1,41 @@
 # NIBBLE devlog
 
+## v1.9.1 — the external clock never actually worked
+
+Reported that Pulse In 1 did not override the X knob. It did not, and three
+separate faults had to line up for it to fail as completely as it did.
+
+**1. Most clock pulses were never seen.** `PulseIn1RisingEdge()` is true for
+exactly ONE 48 kHz sample, and it was being polled from the 3 kHz control tick —
+so an edge only registered when it happened to land on the 1-in-16 sample the
+tick ran on. About 6% of pulses caught. `ClockPulse()` needs two consecutive
+edges to measure an interval, so at 120 bpm it was seeing roughly one edge every
+eight seconds and could essentially never lock.
+
+The edge is latched at audio rate now and consumed by the control tick. **This
+also silently broke the KEYS retrigger**, which was dropping the same 94% of its
+triggers — nobody had reported it, presumably because a missed retrigger is much
+less obvious than a clock that does nothing.
+
+**2. The two clock timers were ordered wrongly.** The interval sanity limit was
+4 s and the timeout 3 s, so any clock slower than 20 bpm timed out *before* its
+next pulse arrived and could never establish an interval. They are named
+constants now with a `static_assert` that the timeout outlasts the longest
+measurable gap.
+
+**3. It never handed the tempo back properly.** `SetTempo()` tracked the knob
+position while clocked, meaning to be helpful. The effect was the opposite: when
+the clock stopped, the knob compared equal to its remembered value, read as "not
+moved", and the tempo stayed wherever the clock had left it until the knob was
+physically wiggled. It now forgets the position while clocked, so the first call
+after release always recomputes.
+
+Modelled end to end in `tools/loopsim.py`: knob at 239 bpm, a 90 bpm clock takes
+over, the clock stops, and 3.0 s later it is back at 239. Locks cleanly across
+30–240 bpm.
+
+---
+
 ## v1.9.0 — recording played every hit twice
 
 ### THE bug behind "recording silences the loop"

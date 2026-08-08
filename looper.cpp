@@ -34,10 +34,18 @@ uint16_t Looper::FireTick(const LoopEvent &ev)
 
 void Looper::SetTempo(int32_t xKnob)
 {
-	// An external clock owns the tempo while it is running. Track the knob
-	// position anyway, so that when the clock stops the knob does not have to
-	// be wiggled before it takes effect again.
-	if (Clocked()) { lastX_ = xKnob; return; }
+	// An external clock owns the tempo while it is running.
+	//
+	// Do NOT track the knob position while clocked. That looks like the helpful
+	// thing to do, and it is exactly wrong: when the clock stops, the knob
+	// compares equal to its remembered value, reads as "not moved", and the
+	// tempo stays wherever the clock left it. The card would sit at the clock's
+	// tempo until the knob was physically wiggled.
+	//
+	// Forgetting the position instead means the first call after the clock
+	// releases always recomputes, so the tempo snaps back to whatever the knob
+	// is actually showing.
+	if (Clocked()) { lastX_ = -9999; return; }
 
 	// Only recompute when the knob has actually moved. See the header.
 	if (lastX_ >= 0 && (xKnob - lastX_ < kKnobMoveThresh)
@@ -56,7 +64,7 @@ void Looper::SetTempo(int32_t xKnob)
 void Looper::ClockPulse()
 {
 	// The first edge only starts the stopwatch; an interval needs two.
-	if (sinceClock_ > 0 && sinceClock_ < kCtrlRate * 4)
+	if (sinceClock_ > 0 && sinceClock_ <= kClockMaxGap)
 	{
 		clockInterval_ = sinceClock_;
 
@@ -81,7 +89,7 @@ void Looper::ClockPulse()
 	}
 
 	sinceClock_   = 0;
-	clockTimeout_ = kCtrlRate * 3;   // hand back to the knob ~3s after it stops
+	clockTimeout_ = kClockTimeout;   // hand back to the knob after it stops
 }
 
 bool Looper::Advance()
@@ -90,7 +98,7 @@ bool Looper::Advance()
 	// timers, not musical ones, and putting them after the early-outs below
 	// would freeze them exactly when the tempo is zero or between ticks — so a
 	// stopped external clock would never time out and hand control back.
-	if (sinceClock_ < kCtrlRate * 8) sinceClock_++;
+	if (sinceClock_ < kCtrlRate * 8) sinceClock_++;   // saturates, never wraps
 	if (clockTimeout_ > 0) clockTimeout_--;
 
 	if (tickInc_ <= 0) return false;

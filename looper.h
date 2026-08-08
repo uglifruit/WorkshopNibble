@@ -71,6 +71,20 @@ constexpr int kMaxKnobEvents = 192;
 constexpr int32_t kBpmMin = 40;
 constexpr int32_t kBpmMax = 240;
 
+/// Longest gap between clock pulses that still counts as a tempo, in control
+/// ticks. 2 seconds is 30 BPM — below the knob's own 40 BPM floor, so anything
+/// the card can play internally can also be clocked.
+constexpr int32_t kClockMaxGap = 2 * kCtrlRate;
+
+/// How long after the last pulse the X knob takes the tempo back.
+///
+/// MUST be longer than kClockMaxGap, or a slow clock times out before its next
+/// pulse arrives and can never establish an interval at all. It was 3s against
+/// a 4s measurement limit, which made every clock below 20 BPM unlockable.
+constexpr int32_t kClockTimeout = 3 * kCtrlRate;
+static_assert(kClockTimeout > kClockMaxGap,
+              "the clock must not time out before it can measure itself");
+
 /// How often each automated knob is sampled while recording, in ticks. Caps
 /// automation density at ~6 events/beat worst case and usually near zero,
 /// since an event is only emitted when the knob has actually moved.
