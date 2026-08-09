@@ -496,6 +496,10 @@ a keyboard. Any card can learn a set of button-combination voltages and act on
 them — the ghost rule, the shift-and-tap gesture and the ten-step learn are a
 general technique for making Four Voltages playable. Expect siblings.
 
+If you are building one, **`docs/LESSONS.md`** is written for you: what to lift
+wholesale, the bugs that recur on this platform, and the things that only a
+hardware session teaches.
+
 ## Credits
 
 ComputerCard by **Chris Johnson** (Music Thing Modular), MIT.

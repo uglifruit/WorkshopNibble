@@ -125,8 +125,16 @@ of direction-dependent error in the level detector before it existed.
 | `ComputerCard.h` | Vendored MTM library — **do not edit** |
 | `tools/` | Python models (see below), `syntax.sh`, `checkyaml.py` |
 | `info.yaml` | Workshop System card registry metadata |
+| `docs/LESSONS.md` | **Handover for the next card** — reusable parts, recurring bugs, platform rules |
 | `docs/DEVLOG.md` | Design decisions, and the bugs the models caught |
 | `docs/HARDWARE-TESTING.md` | Running order for a hardware session, and what to bring back |
+
+## Starting a new card on this lineage
+
+Read **`docs/LESSONS.md`** first. It is the distilled version of eleven releases
+and several hardware sessions: which parts to lift wholesale (the level detector
+and ghost rule, the event looper, the Python models), the bugs that recur on
+this platform, and the setup advice that took a bench session to learn.
 
 ## Current status
 
