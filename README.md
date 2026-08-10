@@ -102,6 +102,20 @@ The knob position genuinely matters. It moves all four outputs at once, and
 towards either extreme several combinations collapse onto nearly the same
 voltage — at which point no amount of software can tell them apart.
 
+**Well-spread voltages are the whole game.** Everything else about this card
+works or fails on that one thing. When two learned levels sit close together
+the symptoms are not a clean failure but an intermittent one: a combination
+that plays the wrong note, fires twice, or does nothing at all — and does it
+differently each time, because a few millivolts of drift is enough to move
+the reading across the boundary between them. It reads as a flaky card rather
+than a mis-set knob, which is what makes it worth saying twice.
+
+If you get that, the fix is not to play more carefully. **Move the Four
+Voltages knob and calibrate again**, and watch for the collision warning
+(LEDs 4 and 5 blinking) which tells you exactly when two captures were too
+close. A calibration that completes with no warnings will behave predictably;
+one that warns will not.
+
 ### Doing it
 
 **Calibration starts on its own at power-up**, since the learned levels are
